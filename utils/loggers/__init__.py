@@ -11,11 +11,12 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 
 from utils.general import colorstr, cv2, emojis
+from utils.loggers.mlflow.mlflow_utils import MlflowLogger
 from utils.loggers.wandb.wandb_utils import WandbLogger
 from utils.plots import plot_images, plot_results
 from utils.torch_utils import de_parallel
 
-LOGGERS = ('csv', 'tb', 'wandb')  # text-file, TensorBoard, Weights & Biases
+LOGGERS = ('csv', 'tb', 'wandb', 'mlflow')  # text-file, TensorBoard, Weights & Biases, Mlflow
 RANK = int(os.getenv('RANK', -1))
 
 try:
@@ -31,6 +32,12 @@ try:
             wandb = None
 except (ImportError, AssertionError):
     wandb = None
+
+try:
+    import mlflow
+    assert hasattr(mlflow, '__version__')  # verify package import not local dir
+except (ImportError, AssertionError):
+    mlflow = None
 
 
 class Loggers():
@@ -87,6 +94,12 @@ class Loggers():
                 )
         else:
             self.wandb = None
+
+        # mlflow
+        if mlflow and 'mlflow' in self.include:
+            self.mlflow = MlflowLogger(self.opt)
+        else:
+            self.mlflow = None
 
     def on_train_start(self):
         # Callback runs on train start
@@ -151,11 +164,20 @@ class Loggers():
             self.wandb.log(x)
             self.wandb.end_epoch(best_result=best_fitness == fi)
 
+        if self.mlflow:
+            self.mlflow.log_metrics(metrics=x, epoch=epoch)
+            if best_fitness == fi:
+                best_results = dict(zip(self.best_keys[1:], vals[3:7]))
+                self.mlflow.log_metrics(best_results, epoch=epoch)
+
     def on_model_save(self, last, epoch, final_epoch, best_fitness, fi):
         # Callback runs on model save event
         if self.wandb:
             if ((epoch + 1) % self.opt.save_period == 0 and not final_epoch) and self.opt.save_period != -1:
                 self.wandb.log_model(last.parent, self.opt, epoch, fi, best_model=best_fitness == fi)
+        if self.mlflow:
+            if ((epoch + 1) % self.opt.save_period == 0 and not final_epoch) and self.opt.save_period != -1:
+                self.mlflow.log_artifacts(last.parent)
 
     def on_train_end(self, last, best, plots, epoch, results):
         # Callback runs on training end
@@ -180,8 +202,20 @@ class Loggers():
                                    aliases=['latest', 'best', 'stripped'])
             self.wandb.finish_run()
 
+        if self.mlflow:
+            # log stuff
+            self.mlflow.log_artifacts(last.parent)
+            [self.mlflow.log_artifacts(f) for f in files if f.exists()]
+            self.mlflow.log_artifacts(self.save_dir / "results.csv")
+            if best.exists():
+                self.mlflow.log_model(best)
+            self.mlflow.finish_run()
+
     def on_params_update(self, params):
         # Update hyperparams or configs of the experiment
         # params: A dict containing {param: value} pairs
         if self.wandb:
             self.wandb.wandb_run.config.update(params, allow_val_change=True)
+
+        if self.mlflow:
+            self.mlflow.log_metrics(params, is_param=True)
