@@ -88,7 +88,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     # Loggers
     data_dict = None
     if RANK in {-1, 0}:
-        loggers = Loggers(save_dir, weights, opt, hyp, LOGGER)  # loggers instance
+        loggers = Loggers(save_dir, weights, opt, hyp, LOGGER, include=("csv", "mlflow"))  # loggers instance
         if loggers.wandb:
             data_dict = loggers.wandb.data_dict
             if resume:
