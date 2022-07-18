@@ -26,7 +26,7 @@ WORKDIR /usr/src/app
 
 # Copy contents
 COPY . /usr/src/app
-RUN git clone https://github.com/ultralytics/yolov5 /usr/src/yolov5
+RUN git clone https://github.com/VisioLab/yolov5 /usr/src/yolov5
 
 # Set environment variables
 ENV OMP_NUM_THREADS=8

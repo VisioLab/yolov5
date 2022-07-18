@@ -15,6 +15,11 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v0
+        with:
+          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.SERVICE_ACCOUNT }}
       - name: Configure docker auth
         shell: bash
         run: |
@@ -30,3 +35,7 @@ jobs:
           file: utils/docker/Dockerfile
           push: true
           tags: europe-docker.pkg.dev/visiolab-shared-4d71/images/yolov5:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          secrets: |
+            GIT_AUTH_TOKEN=${{ secrets.MACHINEUSER_PAT}}
