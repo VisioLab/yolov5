@@ -114,7 +114,7 @@ class MlflowLogger:
         """
         self.mlflow.end_run()
 
-safe_re = re.compile(r"[^a-zA-Z0-9_-\.\s/]")
+safe_re = re.compile(r"[^a-zA-Z0-9_\-\.\s/]")
 
 def _safe_keys(logs: Dict[str, Any]) -> str:
     """Make keys safe to log to MLflow"""
