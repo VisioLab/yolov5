@@ -1,5 +1,6 @@
 """Utilities and tools for tracking runs with Mlflow."""
 
+import re
 import sys
 from argparse import Namespace
 from pathlib import Path
@@ -84,17 +85,17 @@ class MlflowLogger:
         self.mlflow.pytorch.log_model(model, artifact_path=self.model_name, code_paths=[ROOT.resolve()])
 
     def log_params(self, params: Dict[str, Any]) -> None:
-        """Member funtion to log parameters.
+        """Log parameters.
         Mlflow doesn't have mutable parameters and so this function is used
         only to log initial training parameters.
 
         Args:
             params (Dict[str, Any]): Parameters as dict
         """
-        self.mlflow.log_params(params=params)
+        self.mlflow.log_params(params=_safe_keys(params))
 
     def log_metrics(self, metrics: Dict[str, float], epoch: int = None, is_param: bool = False) -> None:
-        """Member function to log metrics.
+        """Log metrics.
         Mlflow requires metrics to be floats.
 
         Args:
@@ -106,9 +107,15 @@ class MlflowLogger:
         metrics_dict = {
             f"{prefix}{k}": float(v)
             for k, v in metrics.items() if (isinstance(v, float) or isinstance(v, int))}
-        self.mlflow.log_metrics(metrics=metrics_dict, step=epoch)
+        self.mlflow.log_metrics(metrics=_safe_keys(metrics_dict), step=epoch)
 
     def finish_run(self) -> None:
         """Member function to end mlflow run.
         """
         self.mlflow.end_run()
+
+safe_re = re.compile(r"[^a-zA-Z0-9_-\.\s/]")
+
+def _safe_keys(logs: Dict[str, Any]) -> str:
+    """Make keys safe to log to MLflow"""
+    return  {safe_re.sub("_", k): v for k, v in logs.items()} 
