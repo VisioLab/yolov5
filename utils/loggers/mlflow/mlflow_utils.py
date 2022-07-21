@@ -118,4 +118,4 @@ safe_re = re.compile(r"[^a-zA-Z0-9_\-\.\s/]")
 
 def _safe_keys(logs: Dict[str, Any]) -> str:
     """Make keys safe to log to MLflow"""
-    return  {safe_re.sub("_", k): v for k, v in logs.items()} 
+    return  {safe_re.sub("_", k): v for k, v in logs.items()}
