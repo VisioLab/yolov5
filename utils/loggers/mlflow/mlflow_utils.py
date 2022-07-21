@@ -1,4 +1,4 @@
-"""Utilities and tools for tracking runs with Mlflow."""
+"""Utilities and tools for tracking runs with MLflow."""
 
 import re
 import sys
