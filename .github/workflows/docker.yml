@@ -52,7 +52,7 @@ jobs:
           context: .
           file: utils/docker/Dockerfile
           push: true
-          tags: europe-docker.pkg.dev/${{ secrets.ARTIFACT_REPOSITORY_ID }}/images/yolov5:${{ env.image_tag }}
+          tags: europe-docker.pkg.dev/${{ secrets.ARTIFACT_REPOSITORY_ID }}/yolov5:${{ env.image_tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           secrets: |
