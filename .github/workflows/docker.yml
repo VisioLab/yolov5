@@ -10,7 +10,7 @@ on:
 
 jobs:
   docker:
-    if: github.repository == 'VisioLab/yolov5' && (github.event_name == "push" || contains(github.event.pull_request.labels.*.name, 'push-image'))
+    if: github.repository == 'VisioLab/yolov5' && (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'push-image'))
     name: Push Docker image to Docker Hub
     runs-on: ubuntu-latest
     permissions:
