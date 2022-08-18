@@ -37,8 +37,8 @@ jobs:
         uses: docker/setup-buildx-action@v2
       - name: Set tag if push to master
         if: github.event == 'push'
-        env:
-          image_tag: 'latest'
+        run: |
+          echo "image_tag=latest" >> $GITHUB_ENV
       - name: Set tag if PR
         if: github.event == 'pull_request'
         run: |
