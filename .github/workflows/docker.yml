@@ -42,7 +42,7 @@ jobs:
       - name: Set tag if PR
         if: github.event_name == 'pull_request'
         run: |
-          echo "image_tag=${GITHUB_REF#refs/heads/})" >> $GITHUB_ENV
+          echo "image_tag=${GITHUB_REF_NAME}" >> $GITHUB_ENV
       - name: Build and push GPU image
         uses: docker/build-push-action@v3
         with:
