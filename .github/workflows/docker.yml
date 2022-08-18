@@ -6,10 +6,11 @@ name: Publish Docker Images
 on:
   push:
     branches: [master]
+  pull_request:
 
 jobs:
   docker:
-    if: github.repository == 'VisioLab/yolov5'
+    if: github.repository == 'VisioLab/yolov5' && (github.event == "push" || contains(github.event.pull_request.labels.*.name, 'push-image'))
     name: Push Docker image to Docker Hub
     runs-on: ubuntu-latest
     permissions:
@@ -34,14 +35,21 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
-
+      - name: Set tag if push to master
+        if: github.event == 'push'
+        env:
+          image_tag: 'latest'
+      - name: Set tag if PR
+        if: github.event == 'pull_request'
+        run: |
+          echo "image_tag=${GITHUB_REF#refs/heads/})" >> $GITHUB_ENV
       - name: Build and push GPU image
         uses: docker/build-push-action@v3
         with:
           context: .
           file: utils/docker/Dockerfile
           push: true
-          tags: europe-docker.pkg.dev/visiolab-shared-4d71/images/yolov5:latest
+          tags: europe-docker.pkg.dev/${{ secrets.ARTIFACT_REPOSITORY_ID }}/images/yolov5:${{ env.image_tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           secrets: |
