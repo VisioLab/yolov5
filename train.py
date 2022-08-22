@@ -29,6 +29,7 @@ import torch.nn as nn
 import yaml
 from torch.optim import lr_scheduler
 from tqdm import tqdm
+import mlflow
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -213,8 +214,11 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                               shuffle=True)
     mlc = int(np.concatenate(dataset.labels, 0)[:, 0].max())  # max label class
     nb = len(train_loader)  # number of batches
-
     LOGGER.info(f'number of training samples: {nb*batch_size}') # print the number of training samples to the console
+    #loggers.num_training_samples=nb*batch_size
+    mlflow.log_params({
+    'num_train_samples': nb*batch_size
+    })
     assert mlc < nc, f'Label class {mlc} exceeds nc={nc} in {data}. Possible class labels are 0-{nc - 1}'
 
     # Process 0
@@ -419,6 +423,9 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     # end training -----------------------------------------------------------------------------------------------------
     if RANK in {-1, 0}:
         LOGGER.info(f'\n{epoch - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours.')
+        mlflow.log_metrics({
+        'training_time/s': time.time() - t0
+        })
         for f in last, best:
             if f.exists():
                 strip_optimizer(f)  # strip optimizers

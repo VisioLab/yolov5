@@ -42,13 +42,14 @@ except (ImportError, AssertionError):
 
 class Loggers():
     # YOLOv5 Loggers class
-    def __init__(self, save_dir=None, weights=None, opt=None, hyp=None, logger=None, include=LOGGERS):
+    def __init__(self, save_dir=None, weights=None, opt=None, hyp=None, logger=None, num_training_samples=None, include=LOGGERS):
         self.save_dir = save_dir
         self.weights = weights
         self.opt = opt
         self.hyp = hyp
         self.logger = logger  # for printing results to console
         self.include = include
+        self.num_training_samples = num_training_samples
         self.keys = [
             'train/box_loss',
             'train/obj_loss',
