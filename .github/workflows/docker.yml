@@ -37,7 +37,7 @@ jobs:
         uses: docker/setup-buildx-action@v2
       - name: Get branch name
         id: branch-name
-        uses: tj-actions/branch-name@v5
+        uses: tj-actions/branch-name@v6
       - name: Set tag if push to master
         if: github.event_name == 'push'
         run: |
