@@ -1,0 +1,15 @@
+artifact_uri: file:///home/jay/Projects/yolov5/mlruns/0/11a3447e04a54029a4fc8e85b5febc66/artifacts
+end_time: 1661162224823
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+name: ''
+run_id: 11a3447e04a54029a4fc8e85b5febc66
+run_uuid: 11a3447e04a54029a4fc8e85b5febc66
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1661162138059
+status: 3
+tags: []
+user_id: jay
