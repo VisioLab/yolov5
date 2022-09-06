@@ -4,10 +4,7 @@ import re
 import sys
 from argparse import Namespace
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Any, Dict
-
-import yaml
 
 import torch
 
