@@ -59,6 +59,7 @@ class MlflowLogger:
         except Exception as err:
             LOGGER.warning(f"Mlflow: not logging params because - {err}")
         self.log_metrics(vars(opt), is_param=True)
+        self.log_artifacts(Path(opt.hyp))
 
     def log_artifacts(self, artifact: Path) -> None:
         """Member function to log artifacts (either directory or single item).
