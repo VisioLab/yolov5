@@ -2,6 +2,8 @@
 import os
 import platform
 from pathlib import Path
+import tempfile
+from typing import Optional
 from PIL import Image
 
 import click
@@ -18,8 +20,11 @@ from utils.general import LOGGER, check_img_size, colorstr, file_size
 @click.command('Export CoreML Model')
 @click.option('--weights', type=str, help='Path or mlflow uri of model weights.')
 @click.option('--output-dir', type=Path, help='Path of directory to store exported model.')
-def main(weights: str, output_dir: Path, image_size=(640, 640), batch_size=1, quantize=False, half=False):
+def main(**kwargs):
+    export_coreml_with_nms(**kwargs)
 
+
+def export_coreml_with_nms(weights: str, output_dir: Optional[Path] = None, image_size=(640, 640), batch_size=1, quantize=False, half=False) -> Path:
     prefix = colorstr('CoreML:')
     mac_capabilities = platform.system() == 'Darwin'
     if not mac_capabilities:
@@ -53,7 +58,9 @@ def main(weights: str, output_dir: Path, image_size=(640, 640), batch_size=1, qu
     LOGGER.info(f"\n{colorstr('PyTorch:')} starting from {weights_path} with output shape {shape} ({file_size(weights_path):.1f} MB)")
 
     # Export
-    if not output_dir.exists():
+    if output_dir is None:
+        output_dir = Path(tempfile.mkdtemp())
+    elif not output_dir.exists():
         output_dir.mkdir(parents=True)
     file = output_dir / weights_path.with_suffix('.mlmodel').name
     LOGGER.info(f'{prefix} starting export with coremltools {ct.__version__}...')
@@ -101,6 +108,7 @@ def main(weights: str, output_dir: Path, image_size=(640, 640), batch_size=1, qu
     ct_model.save(file)
 
     LOGGER.info(f'{prefix} export success, saved as {file} ({file_size(file):.1f} MB)')
+    return file
 
 if __name__ == "__main__":
     main()
