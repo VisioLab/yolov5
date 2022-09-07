@@ -466,7 +466,9 @@ def check_dataset(data, autodownload=True):
         extract_dir, autodownload = data.parent, False
 
     # Read yaml (optional)
+    data_path = None
     if isinstance(data, (str, Path)):
+        data_path = Path(data)
         with open(data, errors='ignore') as f:
             data = yaml.safe_load(f)  # dictionary
 
@@ -478,7 +480,7 @@ def check_dataset(data, autodownload=True):
         data['names'] = [f'class{i}' for i in range(data['nc'])]  # default names
 
     # Resolve paths
-    path = Path(extract_dir or data.get('path') or '')  # optional 'path' default to '.'
+    path = Path(extract_dir or data.get('path') or (data_path.parent if data_path else '.'))  # optional 'path' default to dir with dataset spec
     if not path.is_absolute():
         path = (ROOT / path).resolve()
     for k in 'train', 'val', 'test':
