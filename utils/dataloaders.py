@@ -31,6 +31,8 @@ from utils.general import (DATASETS_DIR, LOGGER, NUM_THREADS, check_dataset, che
                            cv2, is_colab, is_kaggle, segments2boxes, xyn2xy, xywh2xyxy, xywhn2xyxy, xyxy2xywhn)
 from utils.torch_utils import torch_distributed_zero_first
 
+from torch.utils.data.sampler import BatchSampler, WeightedRandomSampler
+
 # Parameters
 HELP_URL = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
 IMG_FORMATS = 'bmp', 'dng', 'jpeg', 'jpg', 'mpo', 'png', 'tif', 'tiff', 'webp'  # include image suffixes
@@ -128,8 +130,13 @@ def create_dataloader(path,
     batch_size = min(batch_size, len(dataset))
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
-    sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
-    loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
+    # sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
+    sampler = WeightedRandomSampler(dataset.weights, dataset.num_samples_per_epoch)
+    # loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
+    loader = DataLoader(
+        dataset,
+        batch_sampler=BatchSampler(sampler, batch_size=batch_size, drop_last=True),
+    )
     return loader(dataset,
                   batch_size=batch_size,
                   shuffle=shuffle and sampler is None,
@@ -424,6 +431,10 @@ class LoadImagesAndLabels(Dataset):
         self.stride = stride
         self.path = path
         self.albumentations = Albumentations() if augment else None
+
+        self._num_classes = self._compute_num_classes()
+        self._weights = self._compute_occurence_weights()
+        self._num_samples_per_epoch = len(self.labels)
 
         try:
             f = []  # image files
@@ -846,6 +857,26 @@ class LoadImagesAndLabels(Dataset):
             lb[:, 0] = i  # add target image index for build_targets()
 
         return torch.stack(im4, 0), torch.cat(label4, 0), path4, shapes4
+
+
+    def _compute_num_classes(self):
+        return len(set(self.labels))
+
+    def _compute_occurence_weights(self):
+        weight_by_class = {
+            cls: 1 / (self._num_classes * self.labels.count(cls))
+            for cls in set(self.labels)
+        }
+        weights = [weight_by_class[lbl] for lbl in self.labels]
+        return weights
+
+    @property
+    def weights(self):
+        return self._weights.copy()
+
+    @property
+    def num_samples_per_epoch(self):
+        return self._num_samples_per_epoch.copy()
 
 
 # Ancillary functions --------------------------------------------------------------------------------------------------
