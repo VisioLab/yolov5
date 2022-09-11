@@ -130,13 +130,14 @@ def create_dataloader(path,
     batch_size = min(batch_size, len(dataset))
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
-    # sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
-    sampler = WeightedRandomSampler(dataset.weights, dataset.num_samples_per_epoch)
-    # loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
-    loader = DataLoader(
-        dataset,
-        batch_sampler=BatchSampler(sampler, batch_size=batch_size, drop_last=True),
-    )
+    sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
+    # sampler = WeightedRandomSampler(dataset._weights, dataset._num_samples)
+    loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
+    # DataLoader(
+    #     dataset,
+    #     num_workers=0,
+    #     batch_sampler=BatchSampler(sampler, batch_size=batch_size, drop_last=True),
+    # )
     return loader(dataset,
                   batch_size=batch_size,
                   shuffle=shuffle and sampler is None,
@@ -432,9 +433,6 @@ class LoadImagesAndLabels(Dataset):
         self.path = path
         self.albumentations = Albumentations() if augment else None
 
-        self._num_classes = self._compute_num_classes()
-        self._weights = self._compute_occurence_weights()
-        self._num_samples_per_epoch = len(self.labels)
 
         try:
             f = []  # image files
@@ -489,6 +487,17 @@ class LoadImagesAndLabels(Dataset):
         self.batch = bi  # batch index of image
         self.n = n
         self.indices = range(n)
+
+        with open("./custom_data/dataset.yaml", 'r') as stream:
+            out = yaml.safe_load(stream)
+
+        self._class_to_idx = {lbl:ind for ind, lbl in enumerate(out['names'])}
+        self._idx_to_class = {ind:lbl for ind, lbl in enumerate(out['names'])}
+        self._classes = out['names']
+        self._num_classes = len(self._class_to_idx)
+        self._num_samples, self._class_idxs = self._compute_num_samples()
+        self._weights = self._compute_occurence_weights()
+        print(self._num_classes, self._num_samples, len(self._weights))
 
         # Update labels
         include_class = []  # filter labels to include only these classes (optional)
@@ -859,24 +868,26 @@ class LoadImagesAndLabels(Dataset):
         return torch.stack(im4, 0), torch.cat(label4, 0), path4, shapes4
 
 
-    def _compute_num_classes(self):
-        return len(set(self.labels))
+    def _compute_num_samples(self):
+        class_idxs = [lbl.flatten()[0] for ls in self.labels for lbl in ls]
+        return len(class_idxs), class_idxs
 
     def _compute_occurence_weights(self):
         weight_by_class = {
-            cls: 1 / (self._num_classes * self.labels.count(cls))
-            for cls in set(self.labels)
+            cls: 1 / (self._num_classes * self._class_idxs.count(self._class_to_idx[cls]))
+            for cls in self._classes
         }
-        weights = [weight_by_class[lbl] for lbl in self.labels]
+        weights = [weight_by_class[self._idx_to_class[idx]] for idx in self._class_idxs]
         return weights
 
-    @property
-    def weights(self):
-        return self._weights.copy()
-
-    @property
-    def num_samples_per_epoch(self):
-        return self._num_samples_per_epoch.copy()
+    # def _compute_occurence_weights(self):
+    #     weight_by_class = {
+    #         cls: 1 / (len(set(self._class_labels)) * self._class_labels.count(cls))
+    #         for cls in set(self._class_labels)
+    #     }
+    #     weights = [weight_by_class[lbl] for lbl in self._class_labels]
+    #     # print(weights)
+    #     return weights
 
 
 # Ancillary functions --------------------------------------------------------------------------------------------------
