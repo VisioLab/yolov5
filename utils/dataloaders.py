@@ -871,7 +871,7 @@ class LoadImagesAndLabels(Dataset):
 
     def _compute_occurence_weights(self):
         weight_by_class = {
-            cls: 1 / (self._num_classes * self._class_idxs.count(self._class_to_idx[cls]))
+            cls: 1 / (self._num_classes * (self._class_idxs.count(self._class_to_idx[cls])+0.00000000001))
             for cls in self._classes
         }
         weights = [weight_by_class[self._idx_to_class[idx]] for idx in self._class_idxs]
