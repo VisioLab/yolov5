@@ -32,6 +32,7 @@ from utils.general import (DATASETS_DIR, LOGGER, NUM_THREADS, check_dataset, che
 from utils.torch_utils import torch_distributed_zero_first
 
 from torch.utils.data.sampler import BatchSampler, WeightedRandomSampler
+import mlflow
 
 # Parameters
 HELP_URL = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
@@ -39,6 +40,8 @@ IMG_FORMATS = 'bmp', 'dng', 'jpeg', 'jpg', 'mpo', 'png', 'tif', 'tiff', 'webp'  
 VID_FORMATS = 'asf', 'avi', 'gif', 'm4v', 'mkv', 'mov', 'mp4', 'mpeg', 'mpg', 'ts', 'wmv'  # include video suffixes
 BAR_FORMAT = '{l_bar}{bar:10}{r_bar}{bar:-10b}'  # tqdm bar format
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
+
+wrsampling = ['mult','avg'][1]
 
 # Get orientation exif tag
 for orientation in ExifTags.TAGS.keys():
@@ -93,6 +96,62 @@ def exif_transpose(image):
     return image
 
 
+def create_dataloader_train(path,
+                      imgsz,
+                      batch_size,
+                      stride,
+                      single_cls=False,
+                      hyp=None,
+                      augment=False,
+                      cache=False,
+                      pad=0.0,
+                      rect=False,
+                      rank=-1,
+                      workers=8,
+                      image_weights=False,
+                      quad=False,
+                      prefix='',
+                      shuffle=False):
+    if rect and shuffle:
+        LOGGER.warning('WARNING: --rect is incompatible with DataLoader shuffle, setting shuffle=False')
+        shuffle = False
+    with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
+        dataset = LoadImagesAndLabels(
+            path,
+            imgsz,
+            batch_size,
+            augment=augment,  # augmentation
+            hyp=hyp,  # hyperparameters
+            rect=rect,  # rectangular batches
+            cache_images=cache,
+            single_cls=single_cls,
+            stride=int(stride),
+            pad=pad,
+            image_weights=image_weights,
+            prefix=prefix)
+
+    batch_size = min(batch_size, len(dataset))
+    print('len_dataset: ', len(dataset))
+    nd = torch.cuda.device_count()  # number of CUDA devices
+    nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
+    # sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
+    sampler = WeightedRandomSampler(dataset._weights, len(dataset))
+    loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
+    # DataLoader(
+    #     dataset,
+    #     num_workers=0,
+    #     batch_sampler=BatchSampler(sampler, batch_size=batch_size, drop_last=True),
+    # )
+    return loader(dataset,
+                  #batch_size=batch_size,
+                  #shuffle=shuffle and sampler is None,
+                  num_workers=nw,
+                  #sampler=sampler,
+                  batch_sampler=BatchSampler(sampler, batch_size=batch_size, drop_last=True),
+                  pin_memory=True,
+                  collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
+
+
 def create_dataloader(path,
                       imgsz,
                       batch_size,
@@ -131,15 +190,12 @@ def create_dataloader(path,
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
     sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
-    batch_sampler = WeightedRandomSampler(dataset._weights, dataset._num_samples)
-    loader = DataLoader # if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
-
+    loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
     return loader(dataset,
                   batch_size=batch_size,
                   shuffle=shuffle and sampler is None,
                   num_workers=nw,
-                  #sampler=sampler,
-                  batch_sampler=BatchSampler(batch_sampler, batch_size=batch_size, drop_last=True),
+                  sampler=sampler,
                   pin_memory=True,
                   collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
 
@@ -484,6 +540,7 @@ class LoadImagesAndLabels(Dataset):
         self.batch = bi  # batch index of image
         self.n = n
         self.indices = range(n)
+        #print('indices', self.indices)
 
         with open("./custom_data/dataset.yaml", 'r') as stream:
             out = yaml.safe_load(stream)
@@ -600,6 +657,8 @@ class LoadImagesAndLabels(Dataset):
     #     return self
 
     def __getitem__(self, index):
+        #print(index)
+        #print(self.indices[index])
         index = self.indices[index]  # linear, shuffled, or image_weights
 
         hyp = self.hyp
@@ -870,21 +929,30 @@ class LoadImagesAndLabels(Dataset):
         return len(class_idxs), class_idxs
 
     def _compute_occurence_weights(self):
-        weight_by_class = {
-            cls: 1 / (self._num_classes * (self._class_idxs.count(self._class_to_idx[cls])+0.00000000001))
-            for cls in self._classes
-        }
-        weights = [weight_by_class[self._idx_to_class[idx]] for idx in self._class_idxs]
-        return weights
+        # weight_by_class = {
+        #     cls: 1 / (self._num_classes * (self._class_idxs.count(self._class_to_idx[cls])+0.00000000001))
+        #     for cls in self._classes
+        # }
 
-    # def _compute_occurence_weights(self):
-    #     weight_by_class = {
-    #         cls: 1 / (len(set(self._class_labels)) * self._class_labels.count(cls))
-    #         for cls in set(self._class_labels)
-    #     }
-    #     weights = [weight_by_class[lbl] for lbl in self._class_labels]
-    #     # print(weights)
-    #     return weights
+        # weights = [weight_by_class[self._idx_to_class[idx]] for idx in self._class_idxs]
+
+        weights = []
+        occ_ls = []
+        img_weight = 1
+        for lbl_ls in self.labels:
+            for lbl in lbl_ls:
+                img_weight = img_weight*(1/(self._num_classes * self._class_idxs.count(lbl.flatten()[0])))
+                occ_ls.append(self._class_idxs.count(lbl.flatten()[0]))
+
+            if wrsampling == 'mult':
+                weights.append(img_weight) 
+            elif wrsampling == 'avg':
+                weights.append(1/(self._num_classes * np.mean(occ_ls)))
+            occ_ls = []
+            img_weight=1
+        print('len_weights: ', len(weights))
+        print('weights: ', weights)
+        return weights
 
 
 # Ancillary functions --------------------------------------------------------------------------------------------------

@@ -43,7 +43,7 @@ from models.yolo import Model
 from utils.autoanchor import check_anchors
 from utils.autobatch import check_train_batch_size
 from utils.callbacks import Callbacks
-from utils.dataloaders import create_dataloader
+from utils.dataloaders import create_dataloader, create_dataloader_train
 from utils.downloads import attempt_download
 from utils.general import (LOGGER, check_amp, check_dataset, check_file, check_git_status, check_img_size,
                            check_requirements, check_suffix, check_yaml, colorstr, get_latest_run, increment_path,
@@ -217,7 +217,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     LOGGER.info(f'number of training samples: {nb*batch_size}') # print the number of training samples to the console
     #loggers.num_training_samples=nb*batch_size
     mlflow.log_params({
-    'num_train_samples': nb*batch_size
+    'num_train_samples': nb*batch_size,
+    'wrsampling': 'None'
     })
     assert mlc < nc, f'Label class {mlc} exceeds nc={nc} in {data}. Possible class labels are 0-{nc - 1}'
 
