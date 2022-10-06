@@ -5,6 +5,7 @@ Image augmentation functions
 
 import math
 import random
+from typing import Iterable
 
 import cv2
 import numpy as np
@@ -200,7 +201,6 @@ def random_perspective(im,
             xy = xy @ M.T  # transform
             xy = (xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]).reshape(n, 8)  # perspective rescale or affine
 
-            # create new boxes
             x = xy[:, [0, 2, 4, 6]]
             y = xy[:, [1, 3, 5, 7]]
             new = np.concatenate((x.min(1), y.min(1), x.max(1), y.max(1))).reshape(4, n).T
@@ -282,3 +282,46 @@ def box_candidates(box1, box2, wh_thr=2, ar_thr=100, area_thr=0.1, eps=1e-16):  
     w2, h2 = box2[2] - box2[0], box2[3] - box2[1]
     ar = np.maximum(w2 / (h2 + eps), h2 / (w2 + eps))  # aspect ratio
     return (w2 > wh_thr) & (h2 > wh_thr) & (w2 * h2 / (w1 * h1 + eps) > area_thr) & (ar < ar_thr)  # candidates
+
+
+def random_paste_objects(img: np.ndarray, boxes: np.ndarray, objects: Iterable[np.ndarray], resize_range=(0.8, 1.2), num_tries=100):
+    prefix = 'Paste Augmentation:'
+    boxes = boxes.copy()
+    for object in objects:
+        ratio = random.uniform(*resize_range)
+        interp = cv2.INTER_LINEAR if ratio > 1 else cv2.INTER_AREA
+        object = cv2.resize(object, dsize=None, fx=ratio, fy=ratio, interpolation=interp)
+
+        candidates = []
+        for _ in range(num_tries):
+            xrange = img.shape[1] - object.shape[1]
+            yrange = img.shape[0] - object.shape[0]
+            if xrange <= 0 or yrange <= 0:
+                LOGGER.warning(f'{prefix} The size of the object ({object.size}) is too large. Stopping...')
+                return
+            x1 = random.randint(0, xrange)
+            y1 = random.randint(0, yrange)
+            x2 = x1 + object.shape[1]
+            y2 = y1 + object.shape[0]
+            candidate = [x1, y1, x2, y2]
+
+            if boxes.size == 0:
+                candidates.append(candidate)
+                break
+
+            occlusion = bbox_ioa(candidate, boxes)
+            if (occlusion <= 0.1).all():
+                candidates.append(candidate)
+
+        if len(candidates) == 0:
+            break
+
+        if random.random() > 0.5:
+            object = cv2.flip(object, 0) # vertical
+
+        if random.random() > 0.5:
+            object = cv2.flip(object, 1) # horizontal
+
+        x1, y1, x2, y2 = random.choice(candidates)
+        img[y1:y2, x1:x2] = object # paste
+        boxes = np.append(boxes, [[x1, y1, x2, y2]], axis=0)
