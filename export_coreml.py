@@ -18,7 +18,7 @@ from utils.general import LOGGER, check_img_size, colorstr, file_size
 
 
 @click.command('Export CoreML Model')
-@click.option('--weights', type=str, help='Path or mlflow uri of model weights.')
+@click.option('--weights', required=True, type=str, help='Path or mlflow uri of model weights.')
 @click.option('--output-dir', type=Path, help='Path of directory to store exported model.')
 def main(**kwargs):
     export_coreml_with_nms(**kwargs)
