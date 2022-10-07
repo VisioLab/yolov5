@@ -57,7 +57,7 @@ jobs:
           python hubconf.py  # hub
           # Export
           python models/yolo.py --cfg $model.yaml  # build PyTorch model
-          # python export_coreml.py --weights $model.pt  # export CoreML model TODO: enable when merged
+          python export_coreml.py --weights $model.pt
           # Python
           python - <<EOF
           import torch
