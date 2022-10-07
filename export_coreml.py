@@ -18,13 +18,20 @@ from utils.general import LOGGER, check_img_size, colorstr, file_size
 
 
 @click.command('Export CoreML Model')
-@click.option('--weights', required=True, type=str, help='Path or mlflow uri of model weights.')
+@click.option('--weights', required=True, type=str,
+              help=('Path or mlflow uri of model weights, uri form: '
+                    '"runs:/RUN_ID/path/to/artifact" or "models:/MODEL_NAME/STAGE"'))
 @click.option('--output-dir', type=Path, help='Path of directory to store exported model.')
 def main(**kwargs):
     export_coreml_with_nms(**kwargs)
 
 
-def export_coreml_with_nms(weights: str, output_dir: Optional[Path] = None, image_size=(640, 640), batch_size=1, quantize=False, half=False) -> Path:
+def export_coreml_with_nms(weights: str,
+                           output_dir: Optional[Path] = None,
+                           image_size=(640, 640),
+                           batch_size=1,
+                           quantize=False,
+                           half=False) -> Path:
     prefix = colorstr('CoreML:')
     mac_capabilities = platform.system() == 'Darwin'
     if not mac_capabilities:
@@ -49,13 +56,15 @@ def export_coreml_with_nms(weights: str, output_dir: Optional[Path] = None, imag
     model.eval()  # training mode = no Detect() layer grid construction
     for _, m in model.named_modules():
         if isinstance(m, Detect):
-            m.inplace = False # Not compatible
+            m.inplace = False  # Not compatible
             m.export = True
 
     for _ in range(2):
         y = model(im)  # dry runs
     shape = tuple(y[0].shape)  # model output shape
-    LOGGER.info(f"\n{colorstr('PyTorch:')} starting from {weights_path} with output shape {shape} ({file_size(weights_path):.1f} MB)")
+    LOGGER.info(
+        f"\n{colorstr('PyTorch:')} starting from {weights_path} with output shape {shape} ({file_size(weights_path):.1f} MB)"
+    )
 
     # Export
     if output_dir is None:
@@ -78,12 +87,13 @@ def export_coreml_with_nms(weights: str, output_dir: Optional[Path] = None, imag
     # Add NMS layer
     LOGGER.info(f'{prefix} Adding NMS layer to converted model.')
     builder = NeuralNetworkBuilder(spec=ct_model.get_spec())
-    
+
     [raw_output] = builder.spec.description.output
     builder.add_split_nd(name='split_raw',
                          input_name=raw_output.name,
                          output_names=['raw_coordinates', 'raw_confidence', 'unknown_confidence'],
-                         axis=-1, split_sizes=(4,1,1))
+                         axis=-1,
+                         split_sizes=(4, 1, 1))
 
     builder.add_nms(name='nonMaximumSupression',
                     input_names=['raw_coordinates', 'raw_confidence'],
@@ -93,7 +103,7 @@ def export_coreml_with_nms(weights: str, output_dir: Optional[Path] = None, imag
                     max_boxes=10)
 
     builder.spec.description.output.add()
-    builder.set_output(['boxes', 'confidence'], [(1,10,4), (1,10,1)])
+    builder.set_output(['boxes', 'confidence'], [(1, 10, 4), (1, 10, 1)])
     ct.utils.convert_double_to_float_multiarray_type(builder.spec)
     ct_model = ct.models.MLModel(builder.spec)
 
@@ -109,6 +119,7 @@ def export_coreml_with_nms(weights: str, output_dir: Optional[Path] = None, imag
 
     LOGGER.info(f'{prefix} export success, saved as {file} ({file_size(file):.1f} MB)')
     return file
+
 
 if __name__ == "__main__":
     main()
