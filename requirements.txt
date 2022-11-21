@@ -17,7 +17,7 @@ protobuf<4.21.3  # https://github.com/ultralytics/yolov5/issues/8012
 # Logging -------------------------------------
 tensorboard>=2.4.1
 # wandb
-mlflow==1.29.0
+mlflow==2.0.1
 google-cloud-storage==2.5.0
 
 # Plotting ------------------------------------
