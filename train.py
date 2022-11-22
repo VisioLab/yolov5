@@ -30,6 +30,7 @@ import yaml
 from torch.optim import lr_scheduler
 from tqdm import tqdm
 import mlflow
+from csv import writer
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -61,6 +62,8 @@ LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable
 RANK = int(os.getenv('RANK', -1))
 WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
 
+issue_id = 'AFC-1728'
+wrsampling = 'mult'
 
 def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictionary
     save_dir, epochs, batch_size, weights, single_cls, evolve, data, cfg, resume, noval, nosave, workers, freeze = \
@@ -197,7 +200,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         LOGGER.info('Using SyncBatchNorm()')
 
     # Trainloader
-    train_loader, dataset = create_dataloader(train_path,
+    train_loader, dataset = create_dataloader_train(train_path,
                                               imgsz,
                                               batch_size // WORLD_SIZE,
                                               gs,
@@ -214,12 +217,10 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                               shuffle=True)
     mlc = int(np.concatenate(dataset.labels, 0)[:, 0].max())  # max label class
     nb = len(train_loader)  # number of batches
-    LOGGER.info(f'number of training samples: {nb*batch_size}') # print the number of training samples to the console
-    #loggers.num_training_samples=nb*batch_size
     mlflow.log_params({
-    'num_train_samples': nb*batch_size,
-    'wrsampling': 'None'
+        'wrsampling': wrsampling
     })
+    mlflow.set_tags(dict(issue_id=issue_id))
     assert mlc < nc, f'Label class {mlc} exceeds nc={nc} in {data}. Possible class labels are 0-{nc - 1}'
 
     # Process 0
@@ -382,6 +383,14 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                            callbacks=callbacks,
                                            compute_loss=compute_loss)
 
+        # to log the mean (over all days) results of the model (epoch=x) to mlflow
+        if epoch == 49:
+            print('num_epoch: ', epoch)
+            with open('test_results_50.csv', 'a+', newline='') as write_obj:
+                csv_writer = writer(write_obj)
+                csv_writer.writerow(list(results))
+
+
             # Update best mAP
             fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
             stop = stopper(epoch=epoch, fitness=fi)  # early stop check
@@ -422,6 +431,12 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
 
         # end epoch ----------------------------------------------------------------------------------------------------
     # end training -----------------------------------------------------------------------------------------------------
+    
+    # to log the mean (over all days) results  of the last model to mlflow
+    with open('test_results_last.csv', 'a+', newline='') as write_obj:
+        csv_writer = writer(write_obj)
+        csv_writer.writerow(list(results))
+
     if RANK in {-1, 0}:
         LOGGER.info(f'\n{epoch - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours.')
         mlflow.log_metrics({
@@ -446,12 +461,19 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                         plots=plots,
                         callbacks=callbacks,
                         compute_loss=compute_loss)  # val best model with plots
+                    #print('test2')
                     if is_coco:
                         callbacks.run('on_fit_epoch_end', list(mloss) + list(results) + lr, epoch, best_fitness, fi)
-
+        #print('test3')
         callbacks.run('on_train_end', last, best, plots, epoch, results)
-
+        #print('test4')
     torch.cuda.empty_cache()
+    LOGGER.info(f'Results {list(results)}')
+    
+    # to log the mean (over all days) results  of the best model to mlflow
+    with open('test_results.csv', 'a+', newline='') as write_obj:
+        csv_writer = writer(write_obj)
+        csv_writer.writerow(list(results))
     return results
 
 
@@ -636,7 +658,6 @@ def main(opt, callbacks=Callbacks()):
         LOGGER.info(f'Hyperparameter evolution finished {opt.evolve} generations\n'
                     f"Results saved to {colorstr('bold', save_dir)}\n"
                     f'Usage example: $ python train.py --hyp {evolve_yaml}')
-
 
 def run(**kwargs):
     # Usage: import train; train.run(data='coco128.yaml', imgsz=320, weights='yolov5m.pt')

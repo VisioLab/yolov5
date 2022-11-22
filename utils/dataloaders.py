@@ -41,7 +41,7 @@ VID_FORMATS = 'asf', 'avi', 'gif', 'm4v', 'mkv', 'mov', 'mp4', 'mpeg', 'mpg', 't
 BAR_FORMAT = '{l_bar}{bar:10}{r_bar}{bar:-10b}'  # tqdm bar format
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
 
-wrsampling = ['mult','avg'][1]
+wrsampling = ['mult','avg'][0]
 
 # Get orientation exif tag
 for orientation in ExifTags.TAGS.keys():
@@ -131,7 +131,10 @@ def create_dataloader_train(path,
             prefix=prefix)
 
     batch_size = min(batch_size, len(dataset))
-    print('len_dataset: ', len(dataset))
+    # print('len_dataset: ', len(dataset))
+    # mlflow.log_params({
+    #     'length_train_dataset' : len(dataset)
+    # })
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
     # sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
@@ -187,6 +190,9 @@ def create_dataloader(path,
             prefix=prefix)
 
     batch_size = min(batch_size, len(dataset))
+    # mlflow.log_params({
+    #     'length_val_dataset' : len(dataset),
+    # })
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
     sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
@@ -542,7 +548,7 @@ class LoadImagesAndLabels(Dataset):
         self.indices = range(n)
         #print('indices', self.indices)
 
-        with open("./custom_data/dataset.yaml", 'r') as stream:
+        with open("../custom_data/dataset.yaml", 'r') as stream:
             out = yaml.safe_load(stream)
 
         self._class_to_idx = {lbl:ind for ind, lbl in enumerate(out['names'])}
@@ -551,7 +557,7 @@ class LoadImagesAndLabels(Dataset):
         self._num_classes = len(self._class_to_idx)
         self._num_samples, self._class_idxs = self._compute_num_samples()
         self._weights = self._compute_occurence_weights()
-        print(self._num_classes, self._num_samples, len(self._weights))
+        # print(self._num_classes, self._num_samples, len(self._weights))
 
         # Update labels
         include_class = []  # filter labels to include only these classes (optional)
@@ -950,8 +956,8 @@ class LoadImagesAndLabels(Dataset):
                 weights.append(1/(self._num_classes * np.mean(occ_ls)))
             occ_ls = []
             img_weight=1
-        print('len_weights: ', len(weights))
-        print('weights: ', weights)
+        # print('len_weights: ', len(weights))
+        # print('weights: ', weights)
         return weights
 
 
