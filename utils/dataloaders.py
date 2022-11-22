@@ -132,9 +132,9 @@ def create_dataloader_train(path,
 
     batch_size = min(batch_size, len(dataset))
     # print('len_dataset: ', len(dataset))
-    # mlflow.log_params({
-    #     'length_train_dataset' : len(dataset)
-    # })
+    mlflow.log_params({
+        'length_train_dataset' : len(dataset)
+    })
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
     # sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
@@ -190,9 +190,9 @@ def create_dataloader(path,
             prefix=prefix)
 
     batch_size = min(batch_size, len(dataset))
-    # mlflow.log_params({
-    #     'length_val_dataset' : len(dataset),
-    # })
+    mlflow.log_params({
+        'length_val_dataset' : len(dataset),
+    })
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
     sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
@@ -550,6 +550,11 @@ class LoadImagesAndLabels(Dataset):
 
         with open("../custom_data/dataset.yaml", 'r') as stream:
             out = yaml.safe_load(stream)
+
+        mlflow.log_params({
+            'train_dataset_name' : out['train_dataset_name'],
+            'val_dataset_name' : out['val_dataset_name']
+        })
 
         self._class_to_idx = {lbl:ind for ind, lbl in enumerate(out['names'])}
         self._idx_to_class = {ind:lbl for ind, lbl in enumerate(out['names'])}
