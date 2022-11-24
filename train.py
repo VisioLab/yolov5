@@ -383,12 +383,12 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                            callbacks=callbacks,
                                            compute_loss=compute_loss)
 
-        # to log the mean (over all days) results of the model (epoch=x) to mlflow
-        if epoch == 49:
-            print('num_epoch: ', epoch)
-            with open('test_results_50.csv', 'a+', newline='') as write_obj:
-                csv_writer = writer(write_obj)
-                csv_writer.writerow(list(results))
+            # to log the mean (over all days) results of the model (epoch=x) to mlflow
+            if epoch == 49:
+                print('num_epoch: ', epoch)
+                with open('test_results_50.csv', 'a+', newline='') as write_obj:
+                    csv_writer = writer(write_obj)
+                    csv_writer.writerow(list(results))
 
 
             # Update best mAP
