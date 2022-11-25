@@ -62,7 +62,7 @@ LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable
 RANK = int(os.getenv('RANK', -1))
 WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
 
-issue_id = 'AFC-1737'
+issue_id = 'AFC-1739'
 wrsampling = 'mult'
 
 def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictionary
@@ -384,6 +384,30 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                            compute_loss=compute_loss)
 
             # to log the mean (over all days) results of the model (epoch=x) to mlflow
+            if epoch == 9:
+                print('num_epoch: ', epoch)
+                with open('test_results_10.csv', 'a+', newline='') as write_obj:
+                    csv_writer = writer(write_obj)
+                    csv_writer.writerow(list(results))
+
+            if epoch == 19:
+                print('num_epoch: ', epoch)
+                with open('test_results_20.csv', 'a+', newline='') as write_obj:
+                    csv_writer = writer(write_obj)
+                    csv_writer.writerow(list(results))
+
+            if epoch == 29:
+                print('num_epoch: ', epoch)
+                with open('test_results_30.csv', 'a+', newline='') as write_obj:
+                    csv_writer = writer(write_obj)
+                    csv_writer.writerow(list(results))
+
+            if epoch == 39:
+                print('num_epoch: ', epoch)
+                with open('test_results_40.csv', 'a+', newline='') as write_obj:
+                    csv_writer = writer(write_obj)
+                    csv_writer.writerow(list(results))
+
             if epoch == 49:
                 print('num_epoch: ', epoch)
                 with open('test_results_50.csv', 'a+', newline='') as write_obj:
@@ -432,10 +456,10 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         # end epoch ----------------------------------------------------------------------------------------------------
     # end training -----------------------------------------------------------------------------------------------------
     
-    # to log the mean (over all days) results  of the last model to mlflow
-    with open('test_results_last.csv', 'a+', newline='') as write_obj:
-        csv_writer = writer(write_obj)
-        csv_writer.writerow(list(results))
+    # # to log the mean (over all days) results  of the last model to mlflow
+    # with open('test_results_last.csv', 'a+', newline='') as write_obj:
+    #     csv_writer = writer(write_obj)
+    #     csv_writer.writerow(list(results))
 
     if RANK in {-1, 0}:
         LOGGER.info(f'\n{epoch - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours.')
@@ -471,9 +495,10 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     LOGGER.info(f'Results {list(results)}')
     
     # to log the mean (over all days) results  of the best model to mlflow
-    with open('test_results.csv', 'a+', newline='') as write_obj:
+    with open('test_results_best.csv', 'a+', newline='') as write_obj:
         csv_writer = writer(write_obj)
         csv_writer.writerow(list(results))
+
     return results
 
 
