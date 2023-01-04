@@ -96,7 +96,8 @@ def exif_transpose(image):
     return image
 
 
-def create_dataloader(path,
+def create_dataloader(data_dict,
+                      path,
                       imgsz,
                       batch_size,
                       stride,
@@ -118,6 +119,7 @@ def create_dataloader(path,
         shuffle = False
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
         dataset = LoadImagesAndLabels(
+            data_dict,
             path,
             imgsz,
             batch_size,
@@ -426,6 +428,7 @@ class LoadImagesAndLabels(Dataset):
     rand_interp_methods = [cv2.INTER_NEAREST, cv2.INTER_LINEAR, cv2.INTER_CUBIC, cv2.INTER_AREA, cv2.INTER_LANCZOS4]
 
     def __init__(self,
+                 data_dict,
                  path,
                  img_size=640,
                  batch_size=16,
@@ -505,20 +508,26 @@ class LoadImagesAndLabels(Dataset):
         self.indices = range(n)
         #print('indices', self.indices)
         
-        if os.path.exists("/path/to/file.txt"):
-            with open("../custom_data/dataset.yaml", 'r') as stream:
-                out = yaml.safe_load(stream)
-        else:
-            print("File does not exist")
+        # if os.path.exists("../custom_data/dataset.yaml"):
+        #     with open("../custom_data/dataset.yaml", 'r') as stream:
+        #         out = yaml.safe_load(stream)
+
+            # self._class_to_idx = {lbl:ind for ind, lbl in enumerate(out['names'])}
+            # self._idx_to_class = {ind:lbl for ind, lbl in enumerate(out['names'])}
+            # self._classes = out['names']
+
+        # else:
+        #     print("File does not exist")
 
         mlflow.log_params({
-            'train_dataset_name' : out['train_dataset_name'],
-            'val_dataset_name' : out['val_dataset_name']
+            'train_dataset_name' : data_dict['train_dataset_name'],
+            'val_dataset_name' : data_dict['val_dataset_name']
         })
 
-        self._class_to_idx = {lbl:ind for ind, lbl in enumerate(out['names'])}
-        self._idx_to_class = {ind:lbl for ind, lbl in enumerate(out['names'])}
-        self._classes = out['names']
+        self._class_to_idx = {lbl:ind for ind, lbl in enumerate(data_dict['names'])}
+        self._idx_to_class = {ind:lbl for ind, lbl in enumerate(data_dict['names'])}
+        self._classes = data_dict['names']
+
         self._num_classes = len(self._class_to_idx)
         self._num_samples, self._class_idxs = self._compute_num_samples()
         self._weights = self._compute_occurence_weights()

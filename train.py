@@ -200,7 +200,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         LOGGER.info('Using SyncBatchNorm()')
 
     # Trainloader
-    train_loader, dataset = create_dataloader(train_path,
+    train_loader, dataset = create_dataloader(data_dict,
+                                              train_path,
                                               imgsz,
                                               batch_size // WORLD_SIZE,
                                               gs,
@@ -226,7 +227,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
 
     # Process 0
     if RANK in {-1, 0}:
-        val_loader = create_dataloader(val_path,
+        val_loader = create_dataloader(data_dict,
+                                       val_path,
                                        imgsz,
                                        batch_size // WORLD_SIZE * 2,
                                        gs,
