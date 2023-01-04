@@ -524,13 +524,15 @@ class LoadImagesAndLabels(Dataset):
         #     'val_dataset_name' : out['val_dataset_name']
         # })
 
-        print('train_dataset_name: ',data_dict['train_dataset_name'])
-        print('val_dataset_name: ',data_dict['val_dataset_name'])
+        # print(data_dict)
 
-        mlflow.log_params({
-            'train_dataset_name' : data_dict['train_dataset_name'],
-            'val_dataset_name' : data_dict['val_dataset_name']
-        })
+        # print('train_dataset_name: ',data_dict['train_dataset_name'])
+        # print('val_dataset_name: ',data_dict['val_dataset_name'])
+
+        # mlflow.log_params({
+        #     'train_dataset_name' : data_dict['train_dataset_name'],
+        #     'val_dataset_name' : data_dict['val_dataset_name']
+        # })
 
         self._class_to_idx = {lbl:ind for ind, lbl in enumerate(data_dict['names'])}
         self._idx_to_class = {ind:lbl for ind, lbl in enumerate(data_dict['names'])}
