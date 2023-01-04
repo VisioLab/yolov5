@@ -519,6 +519,14 @@ class LoadImagesAndLabels(Dataset):
         # else:
         #     print("File does not exist")
 
+        # mlflow.log_params({
+        #     'train_dataset_name' : out['train_dataset_name'],
+        #     'val_dataset_name' : out['val_dataset_name']
+        # })
+
+        print('train_dataset_name: ',data_dict['train_dataset_name'])
+        print('val_dataset_name: ',data_dict['val_dataset_name'])
+
         mlflow.log_params({
             'train_dataset_name' : data_dict['train_dataset_name'],
             'val_dataset_name' : data_dict['val_dataset_name']
