@@ -504,9 +504,12 @@ class LoadImagesAndLabels(Dataset):
         self.n = n
         self.indices = range(n)
         #print('indices', self.indices)
-
-        with open("../custom_data/dataset.yaml", 'r') as stream:
-            out = yaml.safe_load(stream)
+        
+        if os.path.exists("/path/to/file.txt"):
+            with open("../custom_data/dataset.yaml", 'r') as stream:
+                out = yaml.safe_load(stream)
+        else:
+            print("File does not exist")
 
         mlflow.log_params({
             'train_dataset_name' : out['train_dataset_name'],
