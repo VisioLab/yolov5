@@ -508,23 +508,6 @@ class LoadImagesAndLabels(Dataset):
         self.indices = range(n)
         #print('indices', self.indices)
         
-        # if os.path.exists("../custom_data/dataset.yaml"):
-        #     with open("../custom_data/dataset.yaml", 'r') as stream:
-        #         out = yaml.safe_load(stream)
-
-            # self._class_to_idx = {lbl:ind for ind, lbl in enumerate(out['names'])}
-            # self._idx_to_class = {ind:lbl for ind, lbl in enumerate(out['names'])}
-            # self._classes = out['names']
-
-        # else:
-        #     print("File does not exist")
-
-        # mlflow.log_params({
-        #     'train_dataset_name' : out['train_dataset_name'],
-        #     'val_dataset_name' : out['val_dataset_name']
-        # })
-
-        # print(data_dict)
 
         # print('train_dataset_name: ',data_dict['train_dataset_name'])
         # print('val_dataset_name: ',data_dict['val_dataset_name'])
