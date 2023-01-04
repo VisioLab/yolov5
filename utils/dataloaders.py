@@ -96,65 +96,6 @@ def exif_transpose(image):
     return image
 
 
-def create_dataloader_train(path,
-                      imgsz,
-                      batch_size,
-                      stride,
-                      single_cls=False,
-                      hyp=None,
-                      augment=False,
-                      cache=False,
-                      pad=0.0,
-                      rect=False,
-                      rank=-1,
-                      workers=8,
-                      image_weights=False,
-                      quad=False,
-                      prefix='',
-                      shuffle=False):
-    if rect and shuffle:
-        LOGGER.warning('WARNING: --rect is incompatible with DataLoader shuffle, setting shuffle=False')
-        shuffle = False
-    with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
-        dataset = LoadImagesAndLabels(
-            path,
-            imgsz,
-            batch_size,
-            augment=augment,  # augmentation
-            hyp=hyp,  # hyperparameters
-            rect=rect,  # rectangular batches
-            cache_images=cache,
-            single_cls=single_cls,
-            stride=int(stride),
-            pad=pad,
-            image_weights=image_weights,
-            prefix=prefix)
-
-    batch_size = min(batch_size, len(dataset))
-    # print('len_dataset: ', len(dataset))
-    mlflow.log_params({
-        'length_train_dataset' : len(dataset)
-    })
-    nd = torch.cuda.device_count()  # number of CUDA devices
-    nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
-    # sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
-    sampler = WeightedRandomSampler(dataset._weights, len(dataset))
-    loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
-    # DataLoader(
-    #     dataset,
-    #     num_workers=0,
-    #     batch_sampler=BatchSampler(sampler, batch_size=batch_size, drop_last=True),
-    # )
-    return loader(dataset,
-                  #batch_size=batch_size,
-                  #shuffle=shuffle and sampler is None,
-                  num_workers=nw,
-                  #sampler=sampler,
-                  batch_sampler=BatchSampler(sampler, batch_size=batch_size, drop_last=True),
-                  pin_memory=True,
-                  collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
-
-
 def create_dataloader(path,
                       imgsz,
                       batch_size,
@@ -170,7 +111,8 @@ def create_dataloader(path,
                       image_weights=False,
                       quad=False,
                       prefix='',
-                      shuffle=False):
+                      shuffle=False,
+                      train_val=''):
     if rect and shuffle:
         LOGGER.warning('WARNING: --rect is incompatible with DataLoader shuffle, setting shuffle=False')
         shuffle = False
@@ -190,20 +132,35 @@ def create_dataloader(path,
             prefix=prefix)
 
     batch_size = min(batch_size, len(dataset))
-    mlflow.log_params({
-        'length_val_dataset' : len(dataset),
-    })
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
-    sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
-    loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
-    return loader(dataset,
-                  batch_size=batch_size,
-                  shuffle=shuffle and sampler is None,
-                  num_workers=nw,
-                  sampler=sampler,
-                  pin_memory=True,
-                  collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
+
+    if train_val=='train':
+        mlflow.log_params({
+            'length_train_dataset' : len(dataset)
+        })
+        sampler = WeightedRandomSampler(dataset._weights, len(dataset))
+        loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
+        return loader(dataset,
+                    num_workers=nw,
+                    batch_sampler=BatchSampler(sampler, batch_size=batch_size, drop_last=True),
+                    pin_memory=True,
+                    collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
+
+    else:   
+        mlflow.log_params({
+            'length_val_dataset' : len(dataset)
+        })
+
+        sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
+        loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
+        return loader(dataset,
+                    batch_size=batch_size,
+                    shuffle=shuffle and sampler is None,
+                    num_workers=nw,
+                    sampler=sampler,
+                    pin_memory=True,
+                    collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
 
 
 class InfiniteDataLoader(dataloader.DataLoader):
