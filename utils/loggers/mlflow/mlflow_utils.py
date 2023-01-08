@@ -39,6 +39,8 @@ class MlflowLogger:
             self.mlflow, self.mlflow_active_run = mlflow, None if not mlflow else mlflow.start_run()
             if self.mlflow_active_run is not None:
                 self.run_id = self.mlflow_active_run.info.run_id
+                with open('mlflow_run_id.txt', 'w+') as f:
+                    f.write(self.run_id)
                 LOGGER.info(f"{prefix}Using run_id({self.run_id})")
                 self.setup(opt)
         except Exception as err:
@@ -59,6 +61,7 @@ class MlflowLogger:
         except Exception as err:
             LOGGER.warning(f"Mlflow: not logging params because - {err}")
         self.log_metrics(vars(opt), is_param=True)
+        self.log_artifacts(Path(opt.hyp))
 
     def log_artifacts(self, artifact: Path) -> None:
         """Member function to log artifacts (either directory or single item).

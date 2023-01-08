@@ -126,6 +126,9 @@ class Loggers():
             if self.wandb and ni == 10:
                 files = sorted(self.save_dir.glob('train*.jpg'))
                 self.wandb.log({'Mosaics': [wandb.Image(str(f), caption=f.name) for f in files if f.exists()]})
+            if self.mlflow and ni == 10:
+                for file in sorted(self.save_dir.glob('train*.jpg')):
+                    self.mlflow.log_artifacts(file)
 
     def on_train_epoch_end(self, epoch):
         # Callback runs on train epoch end

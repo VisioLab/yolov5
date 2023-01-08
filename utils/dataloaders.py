@@ -18,6 +18,7 @@ from threading import Thread
 from urllib.parse import urlparse
 from zipfile import ZipFile
 
+import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -26,9 +27,9 @@ from PIL import ExifTags, Image, ImageOps
 from torch.utils.data import DataLoader, Dataset, dataloader, distributed
 from tqdm import tqdm
 
-from utils.augmentations import Albumentations, augment_hsv, copy_paste, letterbox, mixup, random_perspective
+from utils.augmentations import Albumentations, augment_hsv, copy_paste, letterbox, mixup, random_paste_objects, random_perspective
 from utils.general import (DATASETS_DIR, LOGGER, NUM_THREADS, check_dataset, check_requirements, check_yaml, clean_str,
-                           cv2, is_colab, is_kaggle, segments2boxes, xyn2xy, xywh2xyxy, xywhn2xyxy, xyxy2xywhn)
+                           is_colab, is_kaggle, segments2boxes, xyn2xy, xywh2xyxy, xywhn2xyxy, xyxy2xywhn)
 from utils.torch_utils import torch_distributed_zero_first
 
 from torch.utils.data.sampler import BatchSampler, WeightedRandomSampler
@@ -113,7 +114,8 @@ def create_dataloader(data_dict,
                       quad=False,
                       prefix='',
                       shuffle=False,
-                      train_val=''):
+                      train_val='',
+                      negatives_path=None):
     if rect and shuffle:
         LOGGER.warning('WARNING: --rect is incompatible with DataLoader shuffle, setting shuffle=False')
         shuffle = False
@@ -131,7 +133,8 @@ def create_dataloader(data_dict,
             stride=int(stride),
             pad=pad,
             image_weights=image_weights,
-            prefix=prefix)
+            prefix=prefix,
+            negatives_path=negatives_path)
 
     batch_size = min(batch_size, len(dataset))
     nd = torch.cuda.device_count()  # number of CUDA devices
@@ -440,7 +443,8 @@ class LoadImagesAndLabels(Dataset):
                  single_cls=False,
                  stride=32,
                  pad=0.0,
-                 prefix=''):
+                 prefix='',
+                 negatives_path=None):
         self.img_size = img_size
         self.augment = augment
         self.hyp = hyp
@@ -452,30 +456,12 @@ class LoadImagesAndLabels(Dataset):
         self.path = path
         self.albumentations = Albumentations() if augment else None
 
-
-        try:
-            f = []  # image files
-            for p in path if isinstance(path, list) else [path]:
-                p = Path(p)  # os-agnostic
-                if p.is_dir():  # dir
-                    f += glob.glob(str(p / '**' / '*.*'), recursive=True)
-                    # f = list(p.rglob('*.*'))  # pathlib
-                elif p.is_file():  # file
-                    with open(p) as t:
-                        t = t.read().strip().splitlines()
-                        parent = str(p.parent) + os.sep
-                        f += [x.replace('./', parent) if x.startswith('./') else x for x in t]  # local to global path
-                        # f += [p.parent / x.lstrip(os.sep) for x in t]  # local to global path (pathlib)
-                else:
-                    raise FileNotFoundError(f'{prefix}{p} does not exist')
-            self.im_files = sorted(x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in IMG_FORMATS)
-            # self.img_files = sorted([x for x in f if x.suffix[1:].lower() in IMG_FORMATS])  # pathlib
-            assert self.im_files, f'{prefix}No images found'
-        except Exception as e:
-            raise Exception(f'{prefix}Error loading data from {path}: {e}\nSee {HELP_URL}')
+        self.im_files = self.find_image_files(self.path, prefix)
+        assert self.im_files, f'{prefix}No images found'
 
         # Check cache
         self.label_files = img2label_paths(self.im_files)  # labels
+        p = Path(self.path[-1] if isinstance(self.path, list) else self.path)
         cache_path = (p if p.is_file() else Path(self.label_files[0]).parent).with_suffix('.cache')
         try:
             cache, exists = np.load(cache_path, allow_pickle=True).item(), True  # load dict
@@ -582,6 +568,43 @@ class LoadImagesAndLabels(Dataset):
                 pbar.desc = f'{prefix}Caching images ({gb / 1E9:.1f}GB {cache_images})'
             pbar.close()
 
+        self.negatives = None
+        if negatives_path:
+            img_paths = self.find_image_files(negatives_path, prefix)
+            label_paths = img2label_paths(img_paths)
+
+            negatives = []
+            for img_path, lbl_path in zip(img_paths, label_paths):
+                img = cv2.imread(img_path)
+                with open(lbl_path) as f:
+                    boxes = [[float(c) for c in box.strip().split(' ')[1:]] for box in f.readlines()]
+                boxes = xywhn2xyxy(np.array(boxes), img.shape[1], img.shape[0]).round().astype('int').tolist()
+                negatives.extend([img[y1:y2, x1:x2] for (x1, y1, x2, y2) in boxes])
+            assert negatives, f"No images in negatives dataset at {negatives_path}"
+            self.negatives = negatives
+
+    def find_image_files(self, path, prefix):
+        try:
+            f = []  # image files
+            for p in path if isinstance(path, list) else [path]:
+                p = Path(p)  # os-agnostic
+                if p.is_dir():  # dir
+                    f += glob.glob(str(p / '**' / '*.*'), recursive=True)
+                    # f = list(p.rglob('*.*'))  # pathlib
+                elif p.is_file():  # file
+                    with open(p) as t:
+                        t = t.read().strip().splitlines()
+                        parent = str(p.parent) + os.sep
+                        f += [x.replace('./', parent) if x.startswith('./') else x for x in t]  # local to global path
+                        # f += [p.parent / x.lstrip(os.sep) for x in t]  # local to global path (pathlib)
+                else:
+                    raise FileNotFoundError(f'{prefix}{p} does not exist')
+            im_files = sorted(x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in IMG_FORMATS)
+            # self.img_files = sorted([x for x in f if x.suffix[1:].lower() in IMG_FORMATS])  # pathlib
+            return im_files
+        except Exception as e:
+            raise Exception(f'{prefix}Error loading data from {path}: {e}\nSee {HELP_URL}')
+
     def cache_labels(self, path=Path('./labels.cache'), prefix=''):
         # Cache dataset labels, check images and read shapes
         x = {}  # dict
@@ -659,6 +682,11 @@ class LoadImagesAndLabels(Dataset):
                 labels[:, 1:] = xywhn2xyxy(labels[:, 1:], ratio[0] * w, ratio[1] * h, padw=pad[0], padh=pad[1])
 
             if self.augment:
+
+                if self.negatives:
+                    objects = random.choices(self.negatives, k=random.randint(1, 4))
+                    random_paste_objects(img, labels[:, 1:], objects) # modify inplace
+
                 img, labels = random_perspective(img,
                                                  labels,
                                                  degrees=hyp['degrees'],
