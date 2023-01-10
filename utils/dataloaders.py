@@ -31,6 +31,7 @@ from utils.augmentations import Albumentations, augment_hsv, copy_paste, letterb
 from utils.general import (DATASETS_DIR, LOGGER, NUM_THREADS, check_dataset, check_requirements, check_yaml, clean_str,
                            is_colab, is_kaggle, segments2boxes, xyn2xy, xywh2xyxy, xywhn2xyxy, xyxy2xywhn)
 from utils.torch_utils import torch_distributed_zero_first
+from torch.utils.data.sampler import BatchSampler, WeightedRandomSampler
 
 # Parameters
 HELP_URL = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
@@ -92,7 +93,8 @@ def exif_transpose(image):
     return image
 
 
-def create_dataloader(path,
+def create_dataloader(data_dict,
+                      path,
                       imgsz,
                       batch_size,
                       stride,
@@ -108,12 +110,14 @@ def create_dataloader(path,
                       quad=False,
                       prefix='',
                       shuffle=False,
+                      train_val=None,
                       negatives_path=None):
     if rect and shuffle:
         LOGGER.warning('WARNING: --rect is incompatible with DataLoader shuffle, setting shuffle=False')
         shuffle = False
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
         dataset = LoadImagesAndLabels(
+            data_dict,
             path,
             imgsz,
             batch_size,
@@ -131,15 +135,26 @@ def create_dataloader(path,
     batch_size = min(batch_size, len(dataset))
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
-    sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
-    loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
-    return loader(dataset,
-                  batch_size=batch_size,
-                  shuffle=shuffle and sampler is None,
-                  num_workers=nw,
-                  sampler=sampler,
-                  pin_memory=True,
-                  collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
+    if train_val=='train':
+        sampler = WeightedRandomSampler(dataset._weights, len(dataset))
+        loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
+        return loader(dataset,
+                    num_workers=nw,
+                    batch_sampler=BatchSampler(sampler, batch_size=batch_size, drop_last=True),
+                    pin_memory=True,
+                    collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
+
+    else:   
+        sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
+        loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
+        return loader(dataset,
+                    batch_size=batch_size,
+                    shuffle=shuffle and sampler is None,
+                    num_workers=nw,
+                    sampler=sampler,
+                    pin_memory=True,
+                    collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
+
 
 
 class InfiniteDataLoader(dataloader.DataLoader):
@@ -405,6 +420,7 @@ class LoadImagesAndLabels(Dataset):
     rand_interp_methods = [cv2.INTER_NEAREST, cv2.INTER_LINEAR, cv2.INTER_CUBIC, cv2.INTER_AREA, cv2.INTER_LANCZOS4]
 
     def __init__(self,
+                 data_dict,
                  path,
                  img_size=640,
                  batch_size=16,
@@ -460,11 +476,19 @@ class LoadImagesAndLabels(Dataset):
         self.im_files = list(cache.keys())  # update
         self.label_files = img2label_paths(cache.keys())  # update
         n = len(shapes)  # number of images
-        bi = np.floor(np.arange(n) / batch_size).astype(np.int)  # batch index
+        bi = np.floor(np.arange(n) / batch_size).astype(int)  # batch index
         nb = bi[-1] + 1  # number of batches
         self.batch = bi  # batch index of image
         self.n = n
         self.indices = range(n)
+
+        self._class_to_idx = {lbl:ind for ind, lbl in enumerate(data_dict['names'])}
+        self._idx_to_class = {ind:lbl for ind, lbl in enumerate(data_dict['names'])}
+        self._classes = data_dict['names']
+
+        self._num_classes = len(self._class_to_idx)
+        self._num_samples, self._class_idxs = self._compute_samples()
+        self._weights = self._compute_occurence_weights()
 
         # Update labels
         include_class = []  # filter labels to include only these classes (optional)
@@ -502,7 +526,7 @@ class LoadImagesAndLabels(Dataset):
                 elif mini > 1:
                     shapes[i] = [1, 1 / mini]
 
-            self.batch_shapes = np.ceil(np.array(shapes) * img_size / stride + pad).astype(np.int) * stride
+            self.batch_shapes = np.ceil(np.array(shapes) * img_size / stride + pad).astype(int) * stride
 
         # Cache images into RAM/disk for faster training (WARNING: large datasets may exceed system resources)
         self.ims = [None] * n
@@ -876,6 +900,20 @@ class LoadImagesAndLabels(Dataset):
 
         return torch.stack(im4, 0), torch.cat(label4, 0), path4, shapes4
 
+    def _compute_samples(self):
+        class_idxs = [lbl.flatten()[0] for ls in self.labels for lbl in ls]
+        return len(class_idxs), class_idxs
+
+    def _compute_occurence_weights(self):
+        weights = []
+        img_weight = 1
+        for lbl_ls in self.labels:
+            for lbl in lbl_ls:
+                img_weight = img_weight*(1/(self._num_classes * self._class_idxs.count(lbl.flatten()[0])))
+            weights.append(img_weight)
+            img_weight=1
+        return weights
+
 
 # Ancillary functions --------------------------------------------------------------------------------------------------
 def create_folder(path='./new'):
@@ -920,7 +958,7 @@ def extract_boxes(path=DATASETS_DIR / 'coco128'):  # from utils.dataloaders impo
                     b = x[1:] * [w, h, w, h]  # box
                     # b[2:] = b[2:].max()  # rectangle to square
                     b[2:] = b[2:] * 1.2 + 3  # pad
-                    b = xywh2xyxy(b.reshape(-1, 4)).ravel().astype(np.int)
+                    b = xywh2xyxy(b.reshape(-1, 4)).ravel().astype(int)
 
                     b[[0, 2]] = np.clip(b[[0, 2]], 0, w)  # clip boxes outside of image
                     b[[1, 3]] = np.clip(b[[1, 3]], 0, h)

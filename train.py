@@ -196,7 +196,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         LOGGER.info('Using SyncBatchNorm()')
 
     # Trainloader
-    train_loader, dataset = create_dataloader(train_path,
+    train_loader, dataset = create_dataloader(data_dict,
+                                              train_path,
                                               imgsz,
                                               batch_size // WORLD_SIZE,
                                               gs,
@@ -211,6 +212,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                               quad=opt.quad,
                                               prefix=colorstr('train: '),
                                               shuffle=True,
+                                              train_val='train',
                                               negatives_path=negatives_path)
     mlc = int(np.concatenate(dataset.labels, 0)[:, 0].max())  # max label class
     nb = len(train_loader)  # number of batches
@@ -218,7 +220,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
 
     # Process 0
     if RANK in {-1, 0}:
-        val_loader = create_dataloader(val_path,
+        val_loader = create_dataloader(data_dict,
+                                       val_path,
                                        imgsz,
                                        batch_size // WORLD_SIZE * 2,
                                        gs,
@@ -229,7 +232,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                        rank=-1,
                                        workers=workers * 2,
                                        pad=0.5,
-                                       prefix=colorstr('val: '))[0]
+                                       prefix=colorstr('val: '),
+                                       train_val='val')[0]
 
         if not resume:
             labels = np.concatenate(dataset.labels, 0)
