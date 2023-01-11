@@ -906,12 +906,11 @@ class LoadImagesAndLabels(Dataset):
 
     def _compute_occurence_weights(self):
         weights = []
-        img_weight = 1
         for lbl_ls in self.labels:
+            img_weight = 1
             for lbl in lbl_ls:
                 img_weight = img_weight*(1/(self._num_classes * self._class_idxs.count(lbl.flatten()[0])))
             weights.append(img_weight)
-            img_weight=1
         return weights
 
 
