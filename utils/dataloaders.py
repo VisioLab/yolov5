@@ -93,8 +93,7 @@ def exif_transpose(image):
     return image
 
 
-def create_dataloader(data_dict,
-                      path,
+def create_dataloader(path,
                       imgsz,
                       batch_size,
                       stride,
@@ -110,14 +109,13 @@ def create_dataloader(data_dict,
                       quad=False,
                       prefix='',
                       shuffle=False,
-                      train_val=None,
+                      balanced=None,
                       negatives_path=None):
     if rect and shuffle:
         LOGGER.warning('WARNING: --rect is incompatible with DataLoader shuffle, setting shuffle=False')
         shuffle = False
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
         dataset = LoadImagesAndLabels(
-            data_dict,
             path,
             imgsz,
             batch_size,
@@ -130,12 +128,14 @@ def create_dataloader(data_dict,
             pad=pad,
             image_weights=image_weights,
             prefix=prefix,
-            negatives_path=negatives_path)
+            negatives_path=negatives_path,
+            balanced=balanced)
 
     batch_size = min(batch_size, len(dataset))
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
-    if train_val=='train':
+
+    if balanced:
         sampler = WeightedRandomSampler(dataset._weights, len(dataset))
         loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
         return loader(dataset,
@@ -144,7 +144,7 @@ def create_dataloader(data_dict,
                     pin_memory=True,
                     collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
 
-    else:   
+    else:
         sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
         loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
         return loader(dataset,
@@ -420,7 +420,6 @@ class LoadImagesAndLabels(Dataset):
     rand_interp_methods = [cv2.INTER_NEAREST, cv2.INTER_LINEAR, cv2.INTER_CUBIC, cv2.INTER_AREA, cv2.INTER_LANCZOS4]
 
     def __init__(self,
-                 data_dict,
                  path,
                  img_size=640,
                  batch_size=16,
@@ -433,7 +432,8 @@ class LoadImagesAndLabels(Dataset):
                  stride=32,
                  pad=0.0,
                  prefix='',
-                 negatives_path=None):
+                 negatives_path=None,
+                 balanced=None):
         self.img_size = img_size
         self.augment = augment
         self.hyp = hyp
@@ -482,13 +482,8 @@ class LoadImagesAndLabels(Dataset):
         self.n = n
         self.indices = range(n)
 
-        self._class_to_idx = {lbl:ind for ind, lbl in enumerate(data_dict['names'])}
-        self._idx_to_class = {ind:lbl for ind, lbl in enumerate(data_dict['names'])}
-        self._classes = data_dict['names']
-
-        self._num_classes = len(self._class_to_idx)
-        self._num_samples, self._class_idxs = self._compute_samples()
-        self._weights = self._compute_occurence_weights()
+        if balanced:
+            self._weights = self._compute_occurence_weights()
 
         # Update labels
         include_class = []  # filter labels to include only these classes (optional)
@@ -900,18 +895,17 @@ class LoadImagesAndLabels(Dataset):
 
         return torch.stack(im4, 0), torch.cat(label4, 0), path4, shapes4
 
-    def _compute_samples(self):
-        class_idxs = [lbl.flatten()[0] for ls in self.labels for lbl in ls]
-        return len(class_idxs), class_idxs
-
     def _compute_occurence_weights(self):
+        all_class_labels = np.concatenate([lbl[:, 0] for lbl in self.labels])
+        class_indices = np.unique(all_class_labels)
+        all_class_labels = all_class_labels.tolist()
+        inverse_class_frequencies = {idx: 1 / all_class_labels.count(idx) for idx in class_indices}
         weights = []
-        for lbl_ls in self.labels:
-            img_weight = 1
-            for lbl in lbl_ls:
-                img_weight = img_weight*(1/(self._num_classes * self._class_idxs.count(lbl.flatten()[0])))
-            weights.append(img_weight)
+        for lbl in self.labels:
+            weights.append(np.prod([inverse_class_frequencies[idx] for idx in lbl[:,0]]))
         return weights
+
+    
 
 
 # Ancillary functions --------------------------------------------------------------------------------------------------
