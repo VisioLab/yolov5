@@ -887,11 +887,11 @@ class LoadImagesAndLabels(Dataset):
         return torch.stack(im4, 0), torch.cat(label4, 0), path4, shapes4
 
     def _compute_occurence_weights(self):
-        all_class_labels = np.concatenate([lbl[:, 0].astype(np.uint16) for lbl in self.labels])
-        class_frequencies = np.bincount(all_class_labels)
+        class_labels = np.array([lbl[:, 0].astype(np.uint16) for lbl in self.labels])
+        class_frequencies = np.bincount(class_labels.flatten())
         weights = []
-        for lbl in self.labels:
-            weights.append(np.prod([1 / class_frequencies[idx.astype(np.uint16)] for idx in lbl[:, 0]]))
+        for lbl in class_labels:
+            weights.append(np.prod([1 / class_frequencies[idx] for idx in lbl]))
         return weights
 
     
