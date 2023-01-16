@@ -137,25 +137,16 @@ def create_dataloader(path,
 
     if balanced:
         sampler = WeightedRandomSampler(dataset._weights, len(dataset))
-        loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
-        return loader(dataset,
-                    num_workers=nw,
-                    batch_sampler=BatchSampler(sampler, batch_size=batch_size, drop_last=True),
-                    pin_memory=True,
-                    collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
-
     else:
         sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
-        loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
-        return loader(dataset,
+    loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
+    return loader(dataset,
                     batch_size=batch_size,
                     shuffle=shuffle and sampler is None,
                     num_workers=nw,
                     sampler=sampler,
                     pin_memory=True,
                     collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
-
-
 
 class InfiniteDataLoader(dataloader.DataLoader):
     """ Dataloader that reuses workers
