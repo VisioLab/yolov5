@@ -888,12 +888,11 @@ class LoadImagesAndLabels(Dataset):
 
     def _compute_occurence_weights(self):
         all_class_labels = np.concatenate([lbl[:, 0] for lbl in self.labels])
-        class_indices = np.unique(all_class_labels)
-        all_class_labels = all_class_labels.tolist()
-        inverse_class_frequencies = {idx: 1 / all_class_labels.count(idx) for idx in class_indices}
+        class_frequencies = np.bincount(all_class_labels.astype(np.int64))
         weights = []
         for lbl in self.labels:
-            weights.append(np.prod([inverse_class_frequencies[idx] for idx in lbl[:,0]]))
+            weights.append(np.prod([1/class_frequencies[idx.astype(np.int64)] for idx in lbl[:,0]]))
+        print(weights)
         return weights
 
     
