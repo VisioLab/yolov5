@@ -892,7 +892,6 @@ class LoadImagesAndLabels(Dataset):
         weights = []
         for lbl in self.labels:
             weights.append(np.prod([1 / class_frequencies[idx.astype(np.uint16)] for idx in lbl[:, 0]]))
-        print(weights)
         return weights
 
     
