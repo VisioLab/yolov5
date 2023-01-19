@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TypeVar, Optional, Iterator
 
 import torch
@@ -31,7 +31,7 @@ class DistributedWeightedSampler(Sampler[T_co]):
         self.subset = self.weights[rank::num_replicas]
 
     def __iter__(self) -> Iterator[T_co]:
-        rand_tensor = torch.multinomial(self.subset, len(subset), self.replacement, generator=self.generator)
+        rand_tensor = torch.multinomial(self.subset, len(self.subset), self.replacement, generator=self.generator)
         yield from iter(rand_tensor.tolist())
 
     def __len__(self) -> int:

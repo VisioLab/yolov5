@@ -32,7 +32,7 @@ from utils.general import (DATASETS_DIR, LOGGER, NUM_THREADS, check_dataset, che
                            is_colab, is_kaggle, segments2boxes, xyn2xy, xywh2xyxy, xywhn2xyxy, xyxy2xywhn)
 from utils.sampler import DistributedWeightedSampler
 from utils.torch_utils import torch_distributed_zero_first
-from torch.utils.data.sampler import BatchSampler, WeightedRandomSampler
+from torch.utils.data.sampler import WeightedRandomSampler
 
 # Parameters
 HELP_URL = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
@@ -475,9 +475,6 @@ class LoadImagesAndLabels(Dataset):
         self.n = n
         self.indices = range(n)
 
-        if balanced:
-            self.weights = self._compute_occurence_weights()
-
         # Update labels
         include_class = []  # filter labels to include only these classes (optional)
         include_class_array = np.array(include_class).reshape(1, -1)
@@ -533,6 +530,12 @@ class LoadImagesAndLabels(Dataset):
                     gb += self.ims[i].nbytes
                 pbar.desc = f'{prefix}Caching images ({gb / 1E9:.1f}GB {cache_images})'
             pbar.close()
+
+        if balanced:
+            self.weights = self._compute_occurence_weights()
+            # sort labels by weights to divide them more evenly on the replicas in distributed training
+            self.labels = [l for _, l in sorted(zip(self.weights, self.labels), key=lambda x: x[0])]
+            self.weights.sort()
 
         self.negatives = None
         if negatives_path:
