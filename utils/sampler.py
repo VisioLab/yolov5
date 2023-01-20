@@ -37,5 +37,5 @@ class DistributedWeightedSampler(Sampler[T_co]):
     def __len__(self) -> int:
         return len(self.subset)
 
-    def set_epoch(self):
+    def set_epoch(self, epoch):
         ...
