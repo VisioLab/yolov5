@@ -489,6 +489,17 @@ class LoadImagesAndLabels(Dataset):
                 if segment:
                     self.segments[i][:, 0] = 0
 
+        if balanced:
+            self.weights = self._compute_occurence_weights()
+
+            # sort by weights to divide them more evenly on the replicas in distributed training
+            order = np.argsort(self.weights)
+            self.im_files = [self.im_files[i] for i in order]
+            self.label_files = [self.label_files[i] for i in order]
+            self.labels = [self.labels[i] for i in order]
+            self.shapes = self.shapes[order]  # wh
+            self.weights.sort()
+
         # Rectangular Training
         if self.rect:
             # Sort by aspect ratio
@@ -530,12 +541,6 @@ class LoadImagesAndLabels(Dataset):
                     gb += self.ims[i].nbytes
                 pbar.desc = f'{prefix}Caching images ({gb / 1E9:.1f}GB {cache_images})'
             pbar.close()
-
-        if balanced:
-            self.weights = self._compute_occurence_weights()
-            # sort labels by weights to divide them more evenly on the replicas in distributed training
-            self.labels = [l for _, l in sorted(zip(self.weights, self.labels), key=lambda x: x[0])]
-            self.weights.sort()
 
         self.negatives = None
         if negatives_path:
