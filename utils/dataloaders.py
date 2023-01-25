@@ -30,8 +30,9 @@ from tqdm import tqdm
 from utils.augmentations import Albumentations, augment_hsv, copy_paste, letterbox, mixup, random_paste_objects, random_perspective
 from utils.general import (DATASETS_DIR, LOGGER, NUM_THREADS, check_dataset, check_requirements, check_yaml, clean_str,
                            is_colab, is_kaggle, segments2boxes, xyn2xy, xywh2xyxy, xywhn2xyxy, xyxy2xywhn)
+from utils.sampler import DistributedWeightedSampler
 from utils.torch_utils import torch_distributed_zero_first
-from torch.utils.data.sampler import BatchSampler, WeightedRandomSampler
+from torch.utils.data.sampler import WeightedRandomSampler
 
 # Parameters
 HELP_URL = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
@@ -136,17 +137,18 @@ def create_dataloader(path,
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
 
     if balanced:
-        sampler = WeightedRandomSampler(dataset._weights, len(dataset))
+        weights = torch.as_tensor(dataset.weights)
+        sampler = WeightedRandomSampler(weights, len(dataset)) if rank == -1 else DistributedWeightedSampler(weights)
     else:
         sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
     loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
     return loader(dataset,
-                    batch_size=batch_size,
-                    shuffle=shuffle and sampler is None,
-                    num_workers=nw,
-                    sampler=sampler,
-                    pin_memory=True,
-                    collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
+                  batch_size=batch_size,
+                  shuffle=shuffle and sampler is None,
+                  num_workers=nw,
+                  sampler=sampler,
+                  pin_memory=True,
+                  collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
 
 class InfiniteDataLoader(dataloader.DataLoader):
     """ Dataloader that reuses workers
@@ -473,9 +475,6 @@ class LoadImagesAndLabels(Dataset):
         self.n = n
         self.indices = range(n)
 
-        if balanced:
-            self._weights = self._compute_occurence_weights()
-
         # Update labels
         include_class = []  # filter labels to include only these classes (optional)
         include_class_array = np.array(include_class).reshape(1, -1)
@@ -489,6 +488,17 @@ class LoadImagesAndLabels(Dataset):
                 self.labels[i][:, 0] = 0
                 if segment:
                     self.segments[i][:, 0] = 0
+
+        if balanced:
+            self.weights = self._compute_occurence_weights()
+
+            # sort by weights to divide them more evenly on the replicas in distributed training
+            order = np.argsort(self.weights)
+            self.im_files = [self.im_files[i] for i in order]
+            self.label_files = [self.label_files[i] for i in order]
+            self.labels = [self.labels[i] for i in order]
+            self.shapes = self.shapes[order]  # wh
+            self.weights.sort()
 
         # Rectangular Training
         if self.rect:
@@ -887,8 +897,8 @@ class LoadImagesAndLabels(Dataset):
         return torch.stack(im4, 0), torch.cat(label4, 0), path4, shapes4
 
     def _compute_occurence_weights(self):
-        class_labels = np.array([lbl[:, 0].astype(np.uint16) for lbl in self.labels])
-        class_frequencies = np.bincount(class_labels.flatten())
+        class_labels = [lbl[:, 0].astype(np.uint16) for lbl in self.labels]
+        class_frequencies = np.bincount(np.concatenate(class_labels))
         weights = []
         for lbl in class_labels:
             weights.append(np.prod([1 / class_frequencies[idx] for idx in lbl]))
