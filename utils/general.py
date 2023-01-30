@@ -22,7 +22,7 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from subprocess import check_output
-from typing import Optional
+from typing import Optional, Dict, Mapping
 from zipfile import ZipFile
 
 import cv2
@@ -53,6 +53,41 @@ pd.options.display.max_columns = 10
 cv2.setNumThreads(0)  # prevent OpenCV from multithreading (incompatible with PyTorch DataLoader)
 os.environ['NUMEXPR_MAX_THREADS'] = str(NUM_THREADS)  # NumExpr max threads
 os.environ['OMP_NUM_THREADS'] = str(NUM_THREADS)  # OpenMP max threads (PyTorch and SciPy)
+
+
+def save_dataset_stats(
+    dataset: Optional,
+    data_dict: Dict,
+    train_stats: Dict[str, int],
+    results_dir: Path,
+    #items: Optional[Mapping[str, Item]] = None,
+):
+    # if items is None:
+    #     items = {}
+    path = results_dir / "dataset_stats.txt"
+    with open(path, "w") as f:
+        x1 = PrettyTable()
+        x1.title = "Images from the API"
+        x1.field_names = ["Class name", "No: of images"]
+        for cls in data_dict["names"]:
+            #human_readable_name = _make_human_readable(cls, items)
+            count = dataset.labels.count(cls)
+            x1.add_row([cls, count])
+        f.write(str(x1))
+        f.write("\n\n")
+
+        x2 = PrettyTable()
+        x2.title = "Images passed to model for training"
+        x2.field_names = ["Class name", "No: of images"]
+        for cls, count in train_stats.items():
+            #human_readable_name = _make_human_readable(cls, items)
+            x2.add_row([cls, count])
+        f.write(str(x2))
+        return path
+
+def _make_human_readable(cls: str, items: Mapping) -> str:
+    return items[cls].full_name if items.get(cls) else cls
+
 
 
 def is_kaggle():
