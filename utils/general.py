@@ -35,7 +35,6 @@ import yaml
 
 from utils.downloads import gsutil_getsize
 from utils.metrics import box_iou, fitness
-from prettytable import PrettyTable
 from tabulate import tabulate
 
 FILE = Path(__file__).resolve()
