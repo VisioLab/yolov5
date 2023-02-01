@@ -35,6 +35,8 @@ import yaml
 
 from utils.downloads import gsutil_getsize
 from utils.metrics import box_iou, fitness
+from prettytable import PrettyTable
+from tabulate import tabulate
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory
@@ -60,34 +62,24 @@ def save_dataset_stats(
     data_dict: Dict,
     train_stats: Dict[str, int],
     results_dir: Path,
-    #items: Optional[Mapping[str, Item]] = None,
 ):
-    # if items is None:
-    #     items = {}
     path = results_dir / "dataset_stats.txt"
+    class_labels = np.concatenate([lbl[:, 0].astype(np.uint16) for lbl in dataset.labels])
     with open(path, "w") as f:
-        x1 = PrettyTable()
-        x1.title = "Images from the API"
-        x1.field_names = ["Class name", "No: of images"]
-        for cls in data_dict["names"]:
-            #human_readable_name = _make_human_readable(cls, items)
-            count = dataset.labels.count(cls)
-            x1.add_row([cls, count])
-        f.write(str(x1))
+        x1 = [['Class name', 'No: of images']]
+        for idx, cls in enumerate(data_dict["names"]):
+            count = np.count_nonzero(class_labels == idx)
+            x1.append([cls, count])
+        f.write("Images from the API\n")
+        f.write(tabulate(x1, headers="firstrow", tablefmt="plain"))
         f.write("\n\n")
 
-        x2 = PrettyTable()
-        x2.title = "Images passed to model for training"
-        x2.field_names = ["Class name", "No: of images"]
+        x2 = [['Class name', 'No: of images']]
         for cls, count in train_stats.items():
-            #human_readable_name = _make_human_readable(cls, items)
-            x2.add_row([cls, count])
-        f.write(str(x2))
-        return path
-
-def _make_human_readable(cls: str, items: Mapping) -> str:
-    return items[cls].full_name if items.get(cls) else cls
-
+            x2.append([cls, count])
+        f.write("Images passed to model for training\n")
+        f.write(tabulate(x2, headers="firstrow", tablefmt="plain"))
+    return path
 
 
 def is_kaggle():

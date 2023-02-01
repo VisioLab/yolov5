@@ -56,6 +56,8 @@ from utils.plots import plot_evolve, plot_labels
 from utils.torch_utils import (EarlyStopping, ModelEMA, de_parallel, select_device, smart_DDP, smart_optimizer,
                                torch_distributed_zero_first)
 from utils.general import save_dataset_stats
+import tempfile
+import mlflow
 
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv('RANK', -1))
@@ -426,7 +428,11 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     
     # Log dataset statistics
     dataset_stats_str = {data_dict['names'][idx]: count for idx, count in dataset_stats.items()}
-    print(dataset_stats_str)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        result_dir = Path(tmpdir)
+        ds_stats_path = save_dataset_stats(dataset, data_dict, dataset_stats_str, result_dir)
+        mlflow.log_artifact(ds_stats_path)
 
     
     if RANK in {-1, 0}:
