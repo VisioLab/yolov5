@@ -282,7 +282,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                 f"Logging results to {colorstr('bold', save_dir)}\n"
                 f'Starting training for {epochs} epochs...')
 
-    dataset_stats = {idx: 0 for idx, _ in enumerate(data_dict['names'])}
+    dataset_stats = {idx: 0 for idx in range(len(data_dict['names']))}
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
         callbacks.run('on_train_epoch_start')
         model.train()
@@ -311,7 +311,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
 
             # Log dataset statistics
-            for target, count in zip(*targets[:,1].unique(return_counts=True)):
+            for target, count in zip(*targets[:, 1].unique(return_counts=True)):
                 dataset_stats[target.item()] += count.item()
 
             # Warmup
@@ -432,7 +432,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     with tempfile.TemporaryDirectory() as tmpdir:
         result_dir = Path(tmpdir)
         ds_stats_path = save_dataset_stats(dataset, data_dict, dataset_stats_str, result_dir)
-        mlflow.log_artifact(ds_stats_path)
+        if loggers.mlflow:
+            loggers.mlflow.log_artifact(ds_stats_path)
 
     
     if RANK in {-1, 0}:

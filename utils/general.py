@@ -62,22 +62,22 @@ def save_dataset_stats(
     train_stats: Dict[str, int],
     results_dir: Path,
 ):
-    path = results_dir / "dataset_stats.txt"
+    path = results_dir / 'dataset_stats.txt'
     class_labels = np.concatenate([lbl[:, 0].astype(np.uint16) for lbl in dataset.labels])
-    with open(path, "w") as f:
-        x1 = [['Class name', 'No: of images']]
-        for idx, cls in enumerate(data_dict["names"]):
-            count = np.count_nonzero(class_labels == idx)
-            x1.append([cls, count])
-        f.write("Images from the API\n")
-        f.write(tabulate(x1, headers="firstrow", tablefmt="plain"))
-        f.write("\n\n")
+    with open(path, 'w') as f:
+        api_imgs_count = []
+        for idx, cls in enumerate(data_dict['names']):
+            count = (class_labels == idx).sum()
+            api_imgs_count.append([cls, count])
+        f.write('Images from the API\n')
+        f.write(tabulate(api_imgs_count, headers=['Class name', 'No: of images'], tablefmt='plain'))
+        f.write('\n\n')
 
-        x2 = [['Class name', 'No: of images']]
         for cls, count in train_stats.items():
-            x2.append([cls, count])
-        f.write("Images passed to model for training\n")
-        f.write(tabulate(x2, headers="firstrow", tablefmt="plain"))
+            train_imgs_count = []
+            train_imgs_count.append([cls, count])
+        f.write('Images passed to model for training\n')
+        f.write(tabulate(train_imgs_count, headers=['Class name', 'No: of images'], tablefmt='plain'))
     return path
 
 
