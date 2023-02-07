@@ -33,12 +33,6 @@ try:
 except (ImportError, AssertionError):
     wandb = None
 
-try:
-    import mlflow
-    assert hasattr(mlflow, '__version__')  # verify package import not local dir
-except (ImportError, AssertionError):
-    mlflow = None
-
 
 class Loggers():
     # YOLOv5 Loggers class
@@ -96,7 +90,7 @@ class Loggers():
             self.wandb = None
 
         # mlflow
-        if mlflow and 'mlflow' in self.include:
+        if 'mlflow' in self.include:
             self.mlflow = MlflowLogger(self.opt)
         else:
             self.mlflow = None

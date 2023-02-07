@@ -1,10 +1,11 @@
 """Utilities and tools for tracking runs with MLflow."""
 
+import os
 import re
 import sys
 from argparse import Namespace
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import torch
 
@@ -15,11 +16,7 @@ if str(ROOT) not in sys.path:
 
 from utils.general import LOGGER, colorstr
 
-try:
-    import mlflow
-    assert hasattr(mlflow, "__version__")
-except (ImportError, AssertionError):
-    mlflow = None
+MLFLOW_PARENT_ENV_VAR = 'MLFLOW_PARENT_RUN_ID'
 
 
 class MlflowLogger:
@@ -27,6 +24,7 @@ class MlflowLogger:
 
     This logger expects that Mlflow is setup by the user.
     """
+    disable_log_model = True  # TODO: Requires properly specified code paths and conda env
 
     def __init__(self, opt: Namespace) -> None:
         """Initializes the MlflowLogger
@@ -34,32 +32,29 @@ class MlflowLogger:
         Args:
             opt (Namespace): Commandline arguments for this run
         """
-        prefix = colorstr("Mlflow: ")
-        try:
-            self.mlflow, self.mlflow_active_run = mlflow, None if not mlflow else mlflow.start_run()
-            if self.mlflow_active_run is not None:
-                self.run_id = self.mlflow_active_run.info.run_id
-                with open('mlflow_run_id.txt', 'w+') as f:
-                    f.write(self.run_id)
-                LOGGER.info(f"{prefix}Using run_id({self.run_id})")
-                self.setup(opt)
-        except Exception as err:
-            LOGGER.error(f"{prefix}Failing init - {repr(err)}")
-            LOGGER.warning(f"{prefix}Continuining without Mlflow")
-            self.mlflow = None
-            self.mlflow_active_run = None
+        import mlflow  # load optional dependency lazily
+        self.mlflow = mlflow
+        self.prefix = colorstr("Mlflow: ")
+        parent_run_id = os.environ.get(MLFLOW_PARENT_ENV_VAR)
+        self.parent_run = None
+        if parent_run_id is not None:
+            mlflow.start_run(run_id=parent_run_id)
+        self.active_run = mlflow.start_run(nested=parent_run_id is not None)
+        with Path(opt.save_dir, 'mlflow_run_id.txt').open('w+') as f:
+            f.write(self.active_run.info.run_id)
+        LOGGER.info(f"{self.prefix}Using run_id({self.active_run.info.run_id})")
+        self.setup(opt)
 
     def setup(self, opt: Namespace) -> None:
         self.model_name = Path(opt.weights).stem
-        self.weights = Path(opt.weights)
         try:
-            self.client = mlflow.tracking.MlflowClient()
-            run = self.client.get_run(run_id=self.run_id)
+            self.client = self.mlflow.tracking.MlflowClient()
+            run = self.client.get_run(run_id=self.active_run.info.run_id)
             logged_params = run.data.params
             remaining_params = {k: v for k, v in vars(opt).items() if k not in logged_params}
             self.log_params(remaining_params)
-        except Exception as err:
-            LOGGER.warning(f"Mlflow: not logging params because - {err}")
+        except Exception:
+            LOGGER.exception(f"{self.prefix}Could not log remaining parameters.")
         self.log_metrics(vars(opt), is_param=True)
         self.log_artifacts(Path(opt.hyp))
 
@@ -74,7 +69,7 @@ class MlflowLogger:
         if artifact.is_dir():
             self.mlflow.log_artifacts(f"{artifact.resolve()}/", artifact_path=str(artifact.stem))
         else:
-            self.mlflow.log_artifact(artifact.resolve())
+            self.mlflow.log_artifact(str(artifact.resolve()))
 
     def log_model(self, model_path) -> None:
         """Member function to log model as an Mlflow model.
@@ -82,10 +77,9 @@ class MlflowLogger:
         Args:
             model (nn.Module): The pytorch model
         """
-        model = torch.hub.load(repo_or_dir=str(ROOT.resolve()), model="custom", path=str(model_path), source="local")
-        if self.weights.exists() and (self.weights.parent.resolve() == ROOT.resolve()):
-            self.weights.unlink()
-        self.mlflow.pytorch.log_model(model, artifact_path=self.model_name, code_paths=[ROOT.resolve()])
+        if not self.disable_log_model:
+            model = torch.hub.load(repo_or_dir=str(ROOT.resolve()), model="custom", path=str(model_path), source="local")
+            self.mlflow.pytorch.log_model(model, artifact_path=self.model_name, code_paths=[ROOT.resolve()])
 
     def log_params(self, params: Dict[str, Any]) -> None:
         """Log parameters.
@@ -97,7 +91,7 @@ class MlflowLogger:
         """
         self.mlflow.log_params(params=_safe_keys(params))
 
-    def log_metrics(self, metrics: Dict[str, float], epoch: int = None, is_param: bool = False) -> None:
+    def log_metrics(self, metrics: Dict[str, float], epoch: Optional[int] = None, is_param: bool = False) -> None:
         """Log metrics.
         Mlflow requires metrics to be floats.
 
