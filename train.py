@@ -428,13 +428,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     
     # Log dataset statistics
     dataset_stats_str = {data_dict['names'][idx]: count for idx, count in dataset_stats.items()}
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        result_dir = Path(tmpdir)
-        ds_stats_path = save_dataset_stats(dataset, data_dict, dataset_stats_str, result_dir)
-        if loggers.mlflow:
-            loggers.mlflow.log_artifact(ds_stats_path)
-
+    ds_stats_path = save_dataset_stats(dataset, data_dict, dataset_stats_str, save_dir)
     
     if RANK in {-1, 0}:
         LOGGER.info(f'\n{epoch - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours.')

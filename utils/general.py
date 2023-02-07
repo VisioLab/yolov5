@@ -73,8 +73,8 @@ def save_dataset_stats(
         f.write(tabulate(api_imgs_count, headers=['Class name', 'No: of images'], tablefmt='plain'))
         f.write('\n\n')
 
+        train_imgs_count = []
         for cls, count in train_stats.items():
-            train_imgs_count = []
             train_imgs_count.append([cls, count])
         f.write('Images passed to model for training\n')
         f.write(tabulate(train_imgs_count, headers=['Class name', 'No: of images'], tablefmt='plain'))
