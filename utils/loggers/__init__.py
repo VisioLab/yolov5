@@ -8,7 +8,10 @@ import warnings
 
 import pkg_resources as pkg
 import torch
-from torch.utils.tensorboard import SummaryWriter
+try:
+    from torch.utils.tensorboard import SummaryWriter
+except ImportError:
+    SummaryWriter = None
 
 from utils.general import colorstr, cv2, emojis
 from utils.loggers.mlflow.mlflow_utils import MlflowLogger
@@ -71,6 +74,8 @@ class Loggers():
         # TensorBoard
         s = self.save_dir
         if 'tb' in self.include and not self.opt.evolve:
+            if SummaryWriter is None:
+                raise RuntimeError('Tensorboard logging requested, but Tensorboard is not installed.')
             prefix = colorstr('TensorBoard: ')
             self.logger.info(f"{prefix}Start with 'tensorboard --logdir {s.parent}', view at http://localhost:6006/")
             self.tb = SummaryWriter(str(s))

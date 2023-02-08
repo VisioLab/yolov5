@@ -12,13 +12,13 @@ scipy>=1.4.1
 torch==1.10.2
 torchvision==0.11.3
 tqdm>=4.64.0
-protobuf<4.21.3  # https://github.com/ultralytics/yolov5/issues/8012
 
 # Logging -------------------------------------
-tensorboard>=2.4.1
+# tensorboard>=2.4.1
+# protobuf<4.21.3  # https://github.com/ultralytics/yolov5/issues/8012
 # wandb
 mlflow==1.30.0
-google-cloud-storage==2.5.0
+google-cloud-storage>=1.30.0
 
 # Plotting ------------------------------------
 pandas>=1.1.4
