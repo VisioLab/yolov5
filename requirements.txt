@@ -18,7 +18,7 @@ tqdm>=4.64.0
 # protobuf<4.21.3  # https://github.com/ultralytics/yolov5/issues/8012
 # wandb
 mlflow==1.30.0
-google-cloud-storage>=1.30.0
+google-cloud-storage
 
 # Plotting ------------------------------------
 pandas>=1.1.4
@@ -26,6 +26,7 @@ seaborn>=0.11.0
 
 # Export --------------------------------------
 coremltools==5.2  # CoreML export
+protobuf==3.20.3
 # onnx>=1.9.0  # ONNX export
 # onnx-simplifier>=0.3.6  # ONNX simplifier
 # nvidia-pyindex  # TensorRT export
