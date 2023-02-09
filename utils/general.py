@@ -22,7 +22,7 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from subprocess import check_output
-from typing import Optional
+from typing import Optional, Dict, Mapping
 from zipfile import ZipFile
 
 import cv2
@@ -35,6 +35,7 @@ import yaml
 
 from utils.downloads import gsutil_getsize
 from utils.metrics import box_iou, fitness
+from tabulate import tabulate
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory
@@ -53,6 +54,31 @@ pd.options.display.max_columns = 10
 cv2.setNumThreads(0)  # prevent OpenCV from multithreading (incompatible with PyTorch DataLoader)
 os.environ['NUMEXPR_MAX_THREADS'] = str(NUM_THREADS)  # NumExpr max threads
 os.environ['OMP_NUM_THREADS'] = str(NUM_THREADS)  # OpenMP max threads (PyTorch and SciPy)
+
+
+def save_dataset_stats(
+    dataset: Optional,
+    data_dict: Dict,
+    train_stats: Dict[str, int],
+    results_dir: Path,
+):
+    path = results_dir / 'dataset_stats.txt'
+    class_labels = np.concatenate([lbl[:, 0].astype(np.uint16) for lbl in dataset.labels])
+    with open(path, 'w') as f:
+        api_imgs_count = []
+        for idx, cls in enumerate(data_dict['names']):
+            count = (class_labels == idx).sum()
+            api_imgs_count.append([cls, count])
+        f.write('Images from the API\n')
+        f.write(tabulate(api_imgs_count, headers=['Class name', 'No: of images'], tablefmt='plain'))
+        f.write('\n\n')
+
+        train_imgs_count = []
+        for cls, count in train_stats.items():
+            train_imgs_count.append([cls, count])
+        f.write('Images passed to model for training\n')
+        f.write(tabulate(train_imgs_count, headers=['Class name', 'No: of images'], tablefmt='plain'))
+    return path
 
 
 def is_kaggle():

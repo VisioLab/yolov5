@@ -207,6 +207,7 @@ class Loggers():
 
         if self.mlflow:
             # log stuff
+            self.mlflow.log_artifacts(self.save_dir / "dataset_stats.txt")
             self.mlflow.log_artifacts(last.parent)
             [self.mlflow.log_artifacts(f) for f in files if f.exists()]
             self.mlflow.log_artifacts(self.save_dir / "results.csv")
