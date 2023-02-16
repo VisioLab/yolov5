@@ -505,8 +505,8 @@ def check_dataset(data, autodownload=True):
         LOGGER.warning(emojis("data.yaml 'names:' field missing ⚠, assigning default names 'class0', 'class1', etc."))
         data['names'] = [f'class{i}' for i in range(data['nc'])]  # default names
 
-    # Resolve paths
-    path = Path(extract_dir or data.get('path') or (data_path.parent if data_path else '.'))  # optional 'path' default to dir with dataset spec
+    # Resolve paths, optional 'path' defaults to dir that contains dataset spec
+    path = Path(extract_dir or data.get('path') or (data_path.resolve().parent if data_path else '.'))
     if not path.is_absolute():
         path = (ROOT / path).resolve()
     for k in 'train', 'val', 'test':
