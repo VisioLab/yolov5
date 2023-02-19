@@ -30,6 +30,9 @@ import yaml
 from torch.optim import lr_scheduler
 from tqdm import tqdm
 
+import mlflow
+from csv import writer
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -383,7 +386,36 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                            plots=False,
                                            callbacks=callbacks,
                                            compute_loss=compute_loss)
+            # to log the mean (over all days) results of the model (epoch=x) to mlflow
+            if epoch == 9:
+                print('num_epoch: ', epoch)
+                with open('test_results_10.csv', 'a+', newline='') as write_obj:
+                    csv_writer = writer(write_obj)
+                    csv_writer.writerow(list(results))
 
+            if epoch == 19:
+                print('num_epoch: ', epoch)
+                with open('test_results_20.csv', 'a+', newline='') as write_obj:
+                    csv_writer = writer(write_obj)
+                    csv_writer.writerow(list(results))
+
+            if epoch == 29:
+                print('num_epoch: ', epoch)
+                with open('test_results_30.csv', 'a+', newline='') as write_obj:
+                    csv_writer = writer(write_obj)
+                    csv_writer.writerow(list(results))
+
+            if epoch == 39:
+                print('num_epoch: ', epoch)
+                with open('test_results_40.csv', 'a+', newline='') as write_obj:
+                    csv_writer = writer(write_obj)
+                    csv_writer.writerow(list(results))
+
+            if epoch == 49:
+                print('num_epoch: ', epoch)
+                with open('test_results_50.csv', 'a+', newline='') as write_obj:
+                    csv_writer = writer(write_obj)
+                    csv_writer.writerow(list(results))
             # Update best mAP
             fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
             stop = stopper(epoch=epoch, fitness=fi)  # early stop check
@@ -455,6 +487,12 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         callbacks.run('on_train_end', last, best, plots, epoch, results)
 
     torch.cuda.empty_cache()
+
+    # to log the mean (over all days) results  of the best model to mlflow
+    with open('test_results_best.csv', 'a+', newline='') as write_obj:
+        csv_writer = writer(write_obj)
+        csv_writer.writerow(list(results))
+
     return results
 
 
