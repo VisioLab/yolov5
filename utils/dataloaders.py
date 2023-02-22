@@ -11,6 +11,7 @@ import os
 import random
 import shutil
 import time
+from functools import partial
 from itertools import repeat
 from multiprocessing.pool import Pool, ThreadPool
 from pathlib import Path
@@ -137,8 +138,8 @@ def create_dataloader(path,
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
 
     if balanced:
-        weights = torch.as_tensor(dataset.weights)
-        sampler = WeightedRandomSampler(weights, len(dataset)) if rank == -1 else DistributedWeightedSampler(weights)
+        sampler_factory = partial(WeightedRandomSampler, num_samples=len(dataset)) if rank == -1 else DistributedWeightedSampler
+        sampler = sampler_factory(dataset.weights)
     else:
         sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
     loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
@@ -498,7 +499,7 @@ class LoadImagesAndLabels(Dataset):
             self.label_files = [self.label_files[i] for i in order]
             self.labels = [self.labels[i] for i in order]
             self.shapes = self.shapes[order]  # wh
-            self.weights.sort()
+            self.weights = [self.weights[i] for i in order]
 
         # Rectangular Training
         if self.rect:
@@ -903,8 +904,6 @@ class LoadImagesAndLabels(Dataset):
         for lbl in class_labels:
             weights.append(np.prod([1 / class_frequencies[idx] for idx in lbl]))
         return weights
-
-    
 
 
 # Ancillary functions --------------------------------------------------------------------------------------------------
