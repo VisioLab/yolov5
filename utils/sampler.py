@@ -32,8 +32,8 @@ class DistributedWeightedSampler(Sampler[T_co]):
     ) -> None:
         if not dist.is_available():
             raise RuntimeError("Requires distributed package to be available")
-        self.world_size = 2 # dist.get_world_size()
-        self.rank = 0 # dist.get_rank()
+        self.world_size = dist.get_world_size()
+        self.rank = dist.get_rank()
 
         self.replacement = replacement
         self.generator = generator
@@ -52,3 +52,16 @@ class DistributedWeightedSampler(Sampler[T_co]):
 
     def set_epoch(self, epoch):
         ...
+
+
+if __name__ == '__main__':
+    from unittest.mock import patch
+    weights = [1., 2., 3., 4., 5., 6., 7., 8., 9.]
+    with patch('utils.sampler.dist.get_world_size', lambda: 2), patch('utils.sampler.dist.get_rank', lambda: 0):
+        sampler = DistributedWeightedSampler(weights)
+        samples = []
+        for _ in range(1000):
+            samples.extend(list(sampler))
+        assert all(i % 2 == 0 for i in samples)
+        assert samples.count(8) > samples.count(4)
+    print('Distributed sampler test succeeded.')

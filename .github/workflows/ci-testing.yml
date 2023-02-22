@@ -59,6 +59,8 @@ jobs:
           python models/yolo.py --cfg $model.yaml  # build PyTorch model
           python export_coreml.py --weights $model.pt coreml
           python export_coreml.py --weights $model.pt torchscript
+          # Distributed Sampler
+          python -m utils.sampler
           # Python
           python - <<EOF
           import torch
