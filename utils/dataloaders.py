@@ -894,7 +894,10 @@ class LoadImagesAndLabels(Dataset):
         class_frequencies = np.bincount(np.concatenate(class_labels))
         weights = []
         for lbl in class_labels:
-            weights.append(np.prod([1 / class_frequencies[idx] for idx in lbl]))
+            if lbl.size:
+                weights.append(np.mean([1 / class_frequencies[idx] for idx in lbl]))
+            else:
+                weights.append(0.)
         return weights
 
 
