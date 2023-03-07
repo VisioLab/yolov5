@@ -493,14 +493,6 @@ class LoadImagesAndLabels(Dataset):
         if balanced:
             self.weights = self._compute_occurence_weights()
 
-            # sort by weights to divide them more evenly on the replicas in distributed training
-            order = np.argsort(self.weights)
-            self.im_files = [self.im_files[i] for i in order]
-            self.label_files = [self.label_files[i] for i in order]
-            self.labels = [self.labels[i] for i in order]
-            self.shapes = self.shapes[order]  # wh
-            self.weights = [self.weights[i] for i in order]
-
         # Rectangular Training
         if self.rect:
             # Sort by aspect ratio
@@ -902,7 +894,10 @@ class LoadImagesAndLabels(Dataset):
         class_frequencies = np.bincount(np.concatenate(class_labels))
         weights = []
         for lbl in class_labels:
-            weights.append(np.prod([1 / class_frequencies[idx] for idx in lbl]))
+            if lbl.size:
+                weights.append(np.mean([1 / class_frequencies[idx] for idx in lbl]))
+            else:
+                weights.append(0.)
         return weights
 
 

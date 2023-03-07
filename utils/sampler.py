@@ -16,19 +16,23 @@ class DistributedWeightedSampler(Sampler[T_co]):
     Args:
         weights: weights for random sampling
         replacement: whether to replace the samples
+        seed: random seed
     """
 
     rank: int
     world_size: int
-    subset: torch.Tensor
-    replacement: bool
-    generator: Optional[torch.Generator]
+    weights: torch.Tensor
+    size: int
+    seed: int
+    epoch: int
+    generator: torch.Generator
+    replacement: bool = True
 
     def __init__(
         self,
         weights: Sequence[float],
         replacement: bool = True,
-        generator: Optional[torch.Generator] = None,
+        seed: Optional[int] = None,
     ) -> None:
         if not dist.is_available():
             raise RuntimeError("Requires distributed package to be available")
@@ -36,32 +40,39 @@ class DistributedWeightedSampler(Sampler[T_co]):
         self.rank = dist.get_rank()
 
         self.replacement = replacement
-        self.generator = generator
-        self.subset = torch.as_tensor(weights[self.rank :: self.world_size])
+        self.generator = torch.Generator()
+        if seed is None:
+            self.seed = self.generator.initial_seed()
+        else:
+            self.seed = seed
+        self.size = len(weights[self.rank::self.world_size])
+        self.weights = torch.as_tensor(weights)
+        self.epoch = 0
 
     def __iter__(self) -> Iterator[T_co]:
+        self.generator.manual_seed(self.seed + self.epoch)
         rand_tensor = torch.multinomial(
-            self.subset, len(self.subset), self.replacement, generator=self.generator
+            self.weights, len(self.weights), self.replacement, generator=self.generator
         )
-        # get indices respective to original dataset (not subset)
-        rand_tensor = rand_tensor * self.world_size + self.rank
+        rand_tensor = rand_tensor[self.rank::self.world_size]
         yield from iter(rand_tensor.tolist())
 
     def __len__(self) -> int:
-        return len(self.subset)
+        return self.size
 
     def set_epoch(self, epoch):
-        ...
+        """Ensure that each replica gets a different random sample."""
+        self.epoch = epoch
 
 
 if __name__ == '__main__':
     from unittest.mock import patch
-    weights = [1., 2., 3., 4., 5., 6., 7., 8., 9.]
+    weights = [1/2, 1/2, 1/6, 1/6, 1/6, 1/6, 1/6, 1/6]
     with patch('utils.sampler.dist.get_world_size', lambda: 2), patch('utils.sampler.dist.get_rank', lambda: 0):
         sampler = DistributedWeightedSampler(weights)
         samples = []
-        for _ in range(1000):
+        for e in range(5000):
+            sampler.set_epoch(e)
             samples.extend(list(sampler))
-        assert all(i % 2 == 0 for i in samples)
-        assert samples.count(8) > samples.count(4)
+        assert round(sum(samples.count(x) for x in range(2)) / 1000) == round(sum(samples.count(x) for x in range(2, 8)) / 1000)
     print('Distributed sampler test succeeded.')
