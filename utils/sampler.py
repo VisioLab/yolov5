@@ -47,6 +47,7 @@ class DistributedWeightedSampler(Sampler[T_co]):
             self.seed = seed
         self.size = len(weights[self.rank::self.world_size])
         self.weights = torch.as_tensor(weights)
+        self.epoch = 0
 
     def __iter__(self) -> Iterator[T_co]:
         self.generator.manual_seed(self.seed + self.epoch)
