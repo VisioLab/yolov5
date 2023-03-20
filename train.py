@@ -496,7 +496,7 @@ def parse_opt(known=False):
     parser.add_argument('--negatives-path', type=str, default=None, help='Path to dataset with objects that should not be detected.')
     parser.add_argument('--balanced', action='store_true', help='use weightedrandomsampler for image selection in training')
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')
-    parser.add_argument('--eval-batchfactor', type=int, default=2, help='factor to increase or decrease batchsize during evaluation')
+    parser.add_argument('--eval-batchfactor', type=int, default=2, help='factor to increase or decrease batch size during evaluation')
 
 
 
