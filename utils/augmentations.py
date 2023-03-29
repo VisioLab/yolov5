@@ -21,7 +21,7 @@ class Albumentations:
         try:
             import albumentations as A
             check_version(A.__version__, '1.0.3', hard=True)  # version requirement
-            
+
             T = [
                 A.Blur(p=0.01),
                 A.MedianBlur(p=0.01),
