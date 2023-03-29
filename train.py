@@ -222,14 +222,14 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     if RANK in {-1, 0}:
         val_loader = create_dataloader(val_path,
                                        imgsz,
-                                       batch_size // WORLD_SIZE * 2,
+                                       batch_size // WORLD_SIZE * opt.eval_batchfactor,
                                        gs,
                                        single_cls,
                                        hyp=hyp,
                                        cache=None if noval else opt.cache,
                                        rect=True,
                                        rank=-1,
-                                       workers=workers * 2,
+                                       workers=workers * opt.eval_batchfactor,
                                        pad=0.5,
                                        prefix=colorstr('val: '))[0]
 
@@ -496,6 +496,9 @@ def parse_opt(known=False):
     parser.add_argument('--negatives-path', type=str, default=None, help='Path to dataset with objects that should not be detected.')
     parser.add_argument('--balanced', action='store_true', help='use weightedrandomsampler for image selection in training')
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')
+    parser.add_argument('--eval-batchfactor', type=int, default=2, help='factor to increase or decrease batch size during evaluation')
+
+
 
     # Weights & Biases arguments
     parser.add_argument('--entity', default=None, help='W&B: Entity')
