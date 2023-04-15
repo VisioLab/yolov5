@@ -22,15 +22,15 @@ class Albumentations:
             import albumentations as A
             check_version(A.__version__, '1.0.3', hard=True)  # version requirement
 
-            T = [
-                A.Blur(p=0.01),
-                A.MedianBlur(p=0.01),
-                A.ToGray(p=0.01),
-                A.CLAHE(p=0.01),
-                A.RandomBrightnessContrast(p=0.0),
-                A.RandomGamma(p=0.0),
-                A.ImageCompression(quality_lower=75, p=0.0)]  # transforms
-            self.transform = A.Compose(T, bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
+            # T = [
+            #     A.Blur(p=0.01),
+            #     A.MedianBlur(p=0.01),
+            #     A.ToGray(p=0.01),
+            #     A.CLAHE(p=0.01),
+            #     A.RandomBrightnessContrast(p=0.0),
+            #     A.RandomGamma(p=0.0),
+            #     A.ImageCompression(quality_lower=75, p=0.0)]  # transforms
+            # self.transform = A.Compose(T, bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
 
             LOGGER.info(colorstr('albumentations: ') + ', '.join(f'{x}' for x in self.transform.transforms if x.p))
         except ImportError:  # package not installed, skip
