@@ -372,7 +372,9 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             callbacks.run('on_train_epoch_end', epoch=epoch)
             ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'names', 'stride', 'class_weights'])
             final_epoch = (epoch + 1 == epochs) or stopper.possible_stop
-            if not noval or final_epoch:  # Calculate mAP
+
+            # Calculate mAP
+            if opt.eval_x_epochs and ((epoch + 1) % opt.eval_x_epochs == 0):
                 results, maps, _ = val.run(data_dict,
                                            batch_size=batch_size // WORLD_SIZE * 2,
                                            imgsz=imgsz,
@@ -383,6 +385,20 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                            plots=False,
                                            callbacks=callbacks,
                                            compute_loss=compute_loss)
+            elif (not noval or final_epoch) and not opt.eval_x_epochs:  
+                results, maps, _ = val.run(data_dict,
+                                           batch_size=batch_size // WORLD_SIZE * 2,
+                                           imgsz=imgsz,
+                                           model=ema.ema,
+                                           single_cls=single_cls,
+                                           dataloader=val_loader,
+                                           save_dir=save_dir,
+                                           plots=False,
+                                           callbacks=callbacks,
+                                           compute_loss=compute_loss)
+            else:
+                results = (0, 0, 0, 0, 0, 0, 0)
+
 
             # Update best mAP
             fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
@@ -497,7 +513,7 @@ def parse_opt(known=False):
     parser.add_argument('--balanced', action='store_true', help='use weightedrandomsampler for image selection in training')
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')
     parser.add_argument('--eval-batchfactor', type=int, default=2, help='factor to increase or decrease batch size during evaluation')
-
+    parser.add_argument('--eval-x-epochs', type=int, default=10, help='evaluate only every x epochs')
 
 
     # Weights & Biases arguments
