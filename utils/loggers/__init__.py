@@ -144,6 +144,10 @@ class Loggers():
             files = sorted(self.save_dir.glob('val*.jpg'))
             self.wandb.log({"Validation": [wandb.Image(str(f), caption=f.name) for f in files]})
 
+        if self.mlflow:
+            for file in sorted(self.save_dir.glob('val*.jpg')):
+                self.mlflow.log_artifacts(file)
+
     def on_fit_epoch_end(self, vals, epoch, best_fitness, fi):
         # Callback runs at the end of each fit (train+val) epoch
         x = dict(zip(self.keys, vals))
