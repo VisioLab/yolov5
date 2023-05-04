@@ -490,6 +490,7 @@ class LoadImagesAndLabels(Dataset):
                 if segment:
                     self.segments[i][:, 0] = 0
 
+        self.weights = None
         if balanced:
             self.weights = self._compute_occurence_weights()
 
