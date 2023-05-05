@@ -60,7 +60,7 @@ def upload(file, **kwargs):
 @cli.command()
 @click.pass_obj
 def coreml(obj: Context):
-    model = export_coreml_with_nms(obj.model, obj.sample_img)
+    _, model = export_coreml_with_nms(obj.model, obj.sample_img)
     file = obj.output_dir / obj.weights_path.with_suffix('.mlmodel').name
     model.save(file)
     LOGGER.info(f'Succesully exported model as {file}')
@@ -164,7 +164,7 @@ def export_coreml_with_nms(model,
         assert output['boxes'].shape == (1, 10, 4)
         assert output['confidence'].shape == (1, 10, 1)
 
-    return ct_model
+    return ts, ct_model
 
 
 if __name__ == "__main__":
