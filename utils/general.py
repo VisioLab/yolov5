@@ -22,7 +22,7 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from subprocess import check_output
-from typing import Optional, Dict, Mapping
+from typing import Dict, Mapping, Optional
 from zipfile import ZipFile
 
 import cv2
@@ -32,10 +32,10 @@ import pkg_resources as pkg
 import torch
 import torchvision
 import yaml
+from tabulate import tabulate
 
 from utils.downloads import gsutil_getsize
 from utils.metrics import box_iou, fitness
-from tabulate import tabulate
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory

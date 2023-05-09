@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-from dataclasses import dataclass
 import os
 import platform
-from pathlib import Path
 import tempfile
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Tuple
-from PIL import Image
 
 import click
 import coremltools as ct
@@ -13,6 +12,7 @@ import mlflow
 import torch
 from coremltools.models.neural_network import NeuralNetworkBuilder
 from mlflow import artifacts as mlflow_artifacts
+from PIL import Image
 
 from models.experimental import attempt_load
 from models.yolo import Detect
@@ -29,7 +29,9 @@ class Context:
 
 
 @click.group('Export')
-@click.option('--weights', required=True, type=str,
+@click.option('--weights',
+              required=True,
+              type=str,
               help=('Path or mlflow uri of model weights, uri form: '
                     '"runs:/RUN_ID/path/to/artifact" or "models:/MODEL_NAME/STAGE"'))
 @click.option('--output-dir', type=Path, help='Path of directory to store exported model.')
@@ -72,7 +74,7 @@ def coreml(obj: Context):
 def torchscript(obj: Context):
     ts = export_torchscript_model(obj.model, obj.sample_img)
     file = obj.output_dir / obj.weights_path.with_suffix('.ts').name
-    torch.jit.save(ts, file) # type: ignore
+    torch.jit.save(ts, file)  # type: ignore
     LOGGER.info(f'Succesully exported model as {file}')
     return file
 
@@ -85,7 +87,7 @@ def initialize_model(weights, batch_size: int, image_size: Tuple[int, int]):
     nc, names = model.nc, model.names  # number of classes, class names
 
     # Checks
-    assert nc == len(names), f'Model class count {nc} != len(names) {len(names)}' # type: ignore
+    assert nc == len(names), f'Model class count {nc} != len(names) {len(names)}'  # type: ignore
     gs = int(max(model.stride))  # grid size (max stride) # type: ignore
     image_size *= 2 if len(image_size) == 1 else 1  # expand
     assert [check_img_size(x, gs) for x in image_size]  # verify img_size are gs-multiples

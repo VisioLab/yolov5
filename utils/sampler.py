@@ -1,8 +1,8 @@
-from typing import Sequence, TypeVar, Optional, Iterator
+from typing import Iterator, Optional, Sequence, TypeVar
 
 import torch
-from torch.utils.data import Sampler
 import torch.distributed as dist
+from torch.utils.data import Sampler
 
 T_co = TypeVar("T_co", covariant=True)
 
@@ -51,9 +51,7 @@ class DistributedWeightedSampler(Sampler[T_co]):
 
     def __iter__(self) -> Iterator[T_co]:
         self.generator.manual_seed(self.seed + self.epoch)
-        rand_tensor = torch.multinomial(
-            self.weights, len(self.weights), self.replacement, generator=self.generator
-        )
+        rand_tensor = torch.multinomial(self.weights, len(self.weights), self.replacement, generator=self.generator)
         rand_tensor = rand_tensor[self.rank::self.world_size]
         yield from iter(rand_tensor.tolist())
 
@@ -67,12 +65,13 @@ class DistributedWeightedSampler(Sampler[T_co]):
 
 if __name__ == '__main__':
     from unittest.mock import patch
-    weights = [1/2, 1/2, 1/6, 1/6, 1/6, 1/6, 1/6, 1/6]
+    weights = [1 / 2, 1 / 2, 1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6]
     with patch('utils.sampler.dist.get_world_size', lambda: 2), patch('utils.sampler.dist.get_rank', lambda: 0):
         sampler = DistributedWeightedSampler(weights)
         samples = []
         for e in range(5000):
             sampler.set_epoch(e)
             samples.extend(list(sampler))
-        assert round(sum(samples.count(x) for x in range(2)) / 1000) == round(sum(samples.count(x) for x in range(2, 8)) / 1000)
+        assert round(sum(samples.count(x)
+                         for x in range(2)) / 1000) == round(sum(samples.count(x) for x in range(2, 8)) / 1000)
     print('Distributed sampler test succeeded.')

@@ -284,7 +284,11 @@ def box_candidates(box1, box2, wh_thr=2, ar_thr=100, area_thr=0.1, eps=1e-16):  
     return (w2 > wh_thr) & (h2 > wh_thr) & (w2 * h2 / (w1 * h1 + eps) > area_thr) & (ar < ar_thr)  # candidates
 
 
-def random_paste_objects(img: np.ndarray, boxes: np.ndarray, objects: Iterable[np.ndarray], resize_range=(0.8, 1.2), num_tries=100):
+def random_paste_objects(img: np.ndarray,
+                         boxes: np.ndarray,
+                         objects: Iterable[np.ndarray],
+                         resize_range=(0.8, 1.2),
+                         num_tries=100):
     prefix = 'Paste Augmentation:'
     boxes = boxes.copy()
     for object in objects:
@@ -317,11 +321,11 @@ def random_paste_objects(img: np.ndarray, boxes: np.ndarray, objects: Iterable[n
             break
 
         if random.random() > 0.5:
-            object = cv2.flip(object, 0) # vertical
+            object = cv2.flip(object, 0)  # vertical
 
         if random.random() > 0.5:
-            object = cv2.flip(object, 1) # horizontal
+            object = cv2.flip(object, 1)  # horizontal
 
         x1, y1, x2, y2 = random.choice(candidates)
-        img[y1:y2, x1:x2] = object # paste
+        img[y1:y2, x1:x2] = object  # paste
         boxes = np.append(boxes, [[x1, y1, x2, y2]], axis=0)
