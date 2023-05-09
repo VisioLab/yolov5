@@ -8,6 +8,7 @@ import warnings
 
 import pkg_resources as pkg
 import torch
+
 try:
     from torch.utils.tensorboard import SummaryWriter
 except ImportError:

@@ -48,7 +48,7 @@ from utils.downloads import attempt_download
 from utils.general import (LOGGER, check_amp, check_dataset, check_file, check_git_status, check_img_size,
                            check_requirements, check_suffix, check_yaml, colorstr, get_latest_run, increment_path,
                            init_seeds, intersect_dicts, labels_to_class_weights, labels_to_image_weights, methods,
-                           one_cycle, print_args, print_mutation, strip_optimizer)
+                           one_cycle, print_args, print_mutation, save_dataset_stats, strip_optimizer)
 from utils.loggers import Loggers
 from utils.loggers.wandb.wandb_utils import check_wandb_resume
 from utils.loss import ComputeLoss
@@ -56,7 +56,6 @@ from utils.metrics import fitness
 from utils.plots import plot_evolve, plot_labels
 from utils.torch_utils import (EarlyStopping, ModelEMA, de_parallel, select_device, smart_DDP, smart_optimizer,
                                torch_distributed_zero_first)
-from utils.general import save_dataset_stats
 
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv('RANK', -1))
@@ -68,6 +67,9 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, opt.single_cls, opt.evolve, opt.data, opt.cfg, \
         opt.resume, opt.noval, opt.nosave, opt.workers, opt.freeze, opt.negatives_path
     callbacks.run('on_pretrain_routine_start')
+
+    if opt.eval_x_epochs and opt.noval:
+        raise ValueError("--eval-x-epochs and --noval cannot be used together.")
 
     # Directories
     w = save_dir / 'weights'  # weights dir
@@ -373,7 +375,9 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             callbacks.run('on_train_epoch_end', epoch=epoch)
             ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'names', 'stride', 'class_weights'])
             final_epoch = (epoch + 1 == epochs) or stopper.possible_stop
-            if not noval or final_epoch:  # Calculate mAP
+
+            if final_epoch or (opt.eval_x_epochs and
+                               (epoch + 1) % opt.eval_x_epochs == 0) or (not noval and not opt.eval_x_epochs):
                 results, maps, _ = val.run(data_dict,
                                            batch_size=batch_size // WORLD_SIZE * 2,
                                            imgsz=imgsz,
@@ -384,6 +388,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                            plots=False,
                                            callbacks=callbacks,
                                            compute_loss=compute_loss)
+            else:
+                results = (0, 0, 0, 0, 0, 0, 0)
 
             # Update best mAP
             fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
@@ -425,11 +431,11 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             break  # must break all DDP ranks
         # end epoch ----------------------------------------------------------------------------------------------------
     # end training -----------------------------------------------------------------------------------------------------
-    
+
     # Log dataset statistics
     dataset_stats_str = {data_dict['names'][idx]: count for idx, count in dataset_stats.items()}
     ds_stats_path = save_dataset_stats(dataset, data_dict, dataset_stats_str, save_dir)
-    
+
     if RANK in {-1, 0}:
         LOGGER.info(f'\n{epoch - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours.')
         for f in last, best:
@@ -497,12 +503,19 @@ def parse_opt(known=False):
     parser.add_argument('--freeze', nargs='+', type=int, default=[0], help='Freeze layers: backbone=10, first3=0 1 2')
     parser.add_argument('--save-period', type=int, default=-1, help='Save checkpoint every x epochs (disabled if < 1)')
     parser.add_argument('--seed', type=int, default=0, help='Global training seed')
-    parser.add_argument('--negatives-path', type=str, default=None, help='Path to dataset with objects that should not be detected.')
-    parser.add_argument('--balanced', action='store_true', help='use weightedrandomsampler for image selection in training')
+    parser.add_argument('--negatives-path',
+                        type=str,
+                        default=None,
+                        help='Path to dataset with objects that should not be detected.')
+    parser.add_argument('--balanced',
+                        action='store_true',
+                        help='use weightedrandomsampler for image selection in training')
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')
-    parser.add_argument('--eval-batchfactor', type=int, default=2, help='factor to increase or decrease batch size during evaluation')
-
-
+    parser.add_argument('--eval-batchfactor',
+                        type=int,
+                        default=2,
+                        help='factor to increase or decrease batch size during evaluation')
+    parser.add_argument('--eval-x-epochs', type=int, help='evaluate only every x epochs')
 
     # Weights & Biases arguments
     parser.add_argument('--entity', default=None, help='W&B: Entity')

@@ -78,7 +78,10 @@ class MlflowLogger:
             model (nn.Module): The pytorch model
         """
         if not self.disable_log_model:
-            model = torch.hub.load(repo_or_dir=str(ROOT.resolve()), model="custom", path=str(model_path), source="local")
+            model = torch.hub.load(repo_or_dir=str(ROOT.resolve()),
+                                   model="custom",
+                                   path=str(model_path),
+                                   source="local")
             self.mlflow.pytorch.log_model(model, artifact_path=self.model_name, code_paths=[ROOT.resolve()])
 
     def log_params(self, params: Dict[str, Any]) -> None:
@@ -111,8 +114,10 @@ class MlflowLogger:
         """
         self.mlflow.end_run()
 
+
 safe_re = re.compile(r"[^a-zA-Z0-9_\-\.\s/]")
+
 
 def _safe_keys(logs: Dict[str, Any]) -> str:
     """Make keys safe to log to MLflow"""
-    return  {safe_re.sub("_", k): v for k, v in logs.items()}
+    return {safe_re.sub("_", k): v for k, v in logs.items()}

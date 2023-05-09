@@ -26,14 +26,15 @@ import torch.nn.functional as F
 import yaml
 from PIL import ExifTags, Image, ImageOps
 from torch.utils.data import DataLoader, Dataset, dataloader, distributed
+from torch.utils.data.sampler import WeightedRandomSampler
 from tqdm import tqdm
 
-from utils.augmentations import Albumentations, augment_hsv, copy_paste, letterbox, mixup, random_paste_objects, random_perspective
+from utils.augmentations import (Albumentations, augment_hsv, copy_paste, letterbox, mixup, random_paste_objects,
+                                 random_perspective)
 from utils.general import (DATASETS_DIR, LOGGER, NUM_THREADS, check_dataset, check_requirements, check_yaml, clean_str,
                            is_colab, is_kaggle, segments2boxes, xyn2xy, xywh2xyxy, xywhn2xyxy, xyxy2xywhn)
 from utils.sampler import DistributedWeightedSampler
 from utils.torch_utils import torch_distributed_zero_first
-from torch.utils.data.sampler import WeightedRandomSampler
 
 # Parameters
 HELP_URL = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
@@ -138,7 +139,8 @@ def create_dataloader(path,
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
 
     if balanced:
-        sampler_factory = partial(WeightedRandomSampler, num_samples=len(dataset)) if rank == -1 else DistributedWeightedSampler
+        sampler_factory = partial(WeightedRandomSampler,
+                                  num_samples=len(dataset)) if rank == -1 else DistributedWeightedSampler
         sampler = sampler_factory(dataset.weights)
     else:
         sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
@@ -150,6 +152,7 @@ def create_dataloader(path,
                   sampler=sampler,
                   pin_memory=True,
                   collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn), dataset
+
 
 class InfiniteDataLoader(dataloader.DataLoader):
     """ Dataloader that reuses workers
@@ -651,7 +654,7 @@ class LoadImagesAndLabels(Dataset):
 
                 if self.negatives:
                     objects = random.choices(self.negatives, k=random.randint(1, 4))
-                    random_paste_objects(img, labels[:, 1:], objects) # modify inplace
+                    random_paste_objects(img, labels[:, 1:], objects)  # modify inplace
 
                 img, labels = random_perspective(img,
                                                  labels,
