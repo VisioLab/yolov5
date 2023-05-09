@@ -166,6 +166,12 @@ def export_coreml_with_nms(model,
 
     return ts, ct_model
 
+def save_ts_coreml(path, imgsz:int = 640):
+    model_load, sample_img, _ = initialize_model(path, 1, image_size=(imgsz, imgsz))
+    ts_model, coreml_model = export_coreml_with_nms(model_load, sample_img)
+    torch.jit.save(ts_model, path.with_suffix('.ts'))
+    coreml_model.save(path.with_suffix('.mlmodel'))
+
 
 if __name__ == "__main__":
     cli()

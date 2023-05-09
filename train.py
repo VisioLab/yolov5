@@ -29,7 +29,7 @@ import torch.nn as nn
 import yaml
 from torch.optim import lr_scheduler
 from tqdm import tqdm
-from export_coreml import export_coreml_with_nms, initialize_model
+from export_coreml import save_ts_coreml
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -411,10 +411,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                     torch.save(ckpt, best)
                 if opt.save_period > 0 and epoch % opt.save_period == 0:
                     torch.save(ckpt, w / f'epoch{epoch}.pt')
-                    model_load, sample_img, _ = initialize_model(w / f'epoch{epoch}.pt', 1, image_size=(imgsz, imgsz))
-                    ts_model, coreml_model = export_coreml_with_nms(model_load, sample_img)
-                    torch.jit.save(ts_model, w / f'epoch{epoch}.ts')
-                    coreml_model.save(w / f'epoch{epoch}.mlmodel')
+                    save_ts_coreml(path= w / f'epoch{epoch}.pt', imgsz=imgsz)
                 del ckpt
                 callbacks.run('on_model_save', last, epoch, final_epoch, best_fitness, fi)
 
@@ -440,6 +437,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                 strip_optimizer(f)  # strip optimizers
                 if f is best:
                     LOGGER.info(f'\nValidating {f}...')
+                    save_ts_coreml(best, imgsz=imgsz)
+
                     results, _, _ = val.run(
                         data_dict,
                         batch_size=batch_size // WORLD_SIZE * 2,
