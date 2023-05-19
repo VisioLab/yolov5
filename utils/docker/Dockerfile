@@ -9,7 +9,7 @@ FROM nvidia/cuda:11.7.1-cudnn8-runtime-ubuntu22.04
 ADD https://ultralytics.com/assets/Arial.ttf https://ultralytics.com/assets/Arial.Unicode.ttf /root/.config/Ultralytics/
 
 # Install linux packages
-RUN apt update && apt install --no-install-recommends -y python3 pip curl git zip htop screen libgl1-mesa-glx
+RUN apt update && apt install --no-install-recommends -y python3 pip curl git zip htop screen libgl1-mesa-glx libglib2.0-0
 
 # Install pip packages
 COPY requirements.txt .
