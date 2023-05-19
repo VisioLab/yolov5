@@ -22,7 +22,7 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from subprocess import check_output
-from typing import Dict, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional
 from zipfile import ZipFile
 
 import cv2
@@ -57,7 +57,7 @@ os.environ['OMP_NUM_THREADS'] = str(NUM_THREADS)  # OpenMP max threads (PyTorch 
 
 
 def save_dataset_stats(
-    dataset: Optional,
+    dataset: Any,
     data_dict: Dict,
     train_stats: Dict[str, int],
     results_dir: Path,
