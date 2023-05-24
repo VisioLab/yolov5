@@ -434,7 +434,10 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
 
     # Log dataset statistics
     dataset_stats_str = {data_dict['names'][idx]: count for idx, count in dataset_stats.items()}
-    ds_stats_path = save_dataset_stats(dataset, data_dict, dataset_stats_str, save_dir)
+    try:
+        ds_stats_path = save_dataset_stats(dataset, data_dict, dataset_stats_str, save_dir)
+    except Exception:
+        LOGGER.exception('Failed to log dataset stats')
 
     if RANK in {-1, 0}:
         LOGGER.info(f'\n{epoch - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours.')
