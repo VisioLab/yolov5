@@ -17,7 +17,7 @@ tqdm>=4.64.0
 # tensorboard>=2.4.1
 # protobuf<4.21.3  # https://github.com/ultralytics/yolov5/issues/8012
 # wandb
-mlflow==2.2.1
+mlflow==2.4.1
 google-cloud-storage
 
 # Plotting ------------------------------------
