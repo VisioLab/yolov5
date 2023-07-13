@@ -15,7 +15,6 @@ except ImportError:
     SummaryWriter = None
 
 from utils.general import colorstr, cv2, emojis
-from utils.loggers.mlflow.mlflow_utils import MlflowLogger
 from utils.loggers.wandb.wandb_utils import WandbLogger
 from utils.plots import plot_images, plot_results
 from utils.torch_utils import de_parallel
@@ -97,6 +96,7 @@ class Loggers():
 
         # mlflow
         if 'mlflow' in self.include:
+            from utils.loggers.mlflow.mlflow_utils import MlflowLogger
             self.mlflow = MlflowLogger(self.opt)
         else:
             self.mlflow = None

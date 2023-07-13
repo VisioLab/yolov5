@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 import os
 import platform
 import tempfile
@@ -16,7 +17,7 @@ from PIL import Image
 
 from models.experimental import attempt_load
 from models.yolo import Detect
-from utils.general import LOGGER, check_img_size, colorstr, file_size
+from utils.general import LOGGER, check_img_size, colorstr, file_size, logging_context
 
 
 @dataclass
@@ -125,7 +126,8 @@ def export_coreml_with_nms(model,
 
     LOGGER.info(f'{prefix} starting export with coremltools {ct.__version__}...')
 
-    ct_model = ct.convert(ts, inputs=[ct.ImageType('image', shape=sample_img.shape, scale=1 / 255, bias=[0, 0, 0])])
+    with logging_context(logging.WARN):
+        ct_model = ct.convert(ts, inputs=[ct.ImageType('image', shape=sample_img.shape, scale=1 / 255, bias=[0, 0, 0])])
     bits, mode = (8, 'kmeans_lut') if quantize else (16, 'linear') if half else (32, None)
     if bits < 32:
         if mac_capabilities:
