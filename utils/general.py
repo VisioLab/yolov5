@@ -22,7 +22,7 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from subprocess import check_output
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional, cast
 from zipfile import ZipFile
 
 import cv2
@@ -122,6 +122,22 @@ def set_logging(name=None, verbose=VERBOSE):
 
 set_logging()  # run before defining LOGGER
 LOGGER = logging.getLogger("yolov5")  # define globally (used in train.py, val.py, detect.py, etc.)
+
+
+@contextlib.contextmanager
+def logging_context(level: int | str):
+    """Context manager to selectively increase the log level.
+    
+    If the current log level is higher than `level`, `level` will be ignored.
+    """
+    root = logging.getLogger()
+    if isinstance(level, str):
+        level = cast(int, logging.getLevelName(level))
+    current_level = root.level
+    if level > current_level:
+        root.setLevel(level)
+    yield
+    root.setLevel(current_level)
 
 
 def user_config_dir(dir='Ultralytics', env_var='YOLOV5_CONFIG_DIR'):
