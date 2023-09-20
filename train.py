@@ -97,6 +97,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             data_dict = loggers.wandb.data_dict
             if resume:
                 weights, epochs, hyp, batch_size = opt.weights, opt.epochs, opt.hyp, opt.batch_size
+        if loggers.mlflow and opt.tag:
+            loggers.mlflow.log_tags({k: v for k, v in opt.tag})
 
         # Register actions
         for k in methods(loggers):
@@ -526,6 +528,7 @@ def parse_opt(known=False):
     parser.add_argument('--upload_dataset', nargs='?', const=True, default=False, help='W&B: Upload data, "val" option')
     parser.add_argument('--bbox_interval', type=int, default=-1, help='W&B: Set bounding-box image logging interval')
     parser.add_argument('--artifact_alias', type=str, default='latest', help='W&B: Version of dataset artifact to use')
+    parser.add_argument("--tag", type=str, nargs=2, action="append", metavar=("key", "value"), help="mlflow: Add additional tags")
 
     opt = parser.parse_known_args()[0] if known else parser.parse_args()
     return opt

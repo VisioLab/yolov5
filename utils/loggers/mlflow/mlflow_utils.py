@@ -116,6 +116,11 @@ class MlflowLogger:
         mlflow.log_params(params=_safe_keys(params))
 
     @retry
+    def log_tags(self, tags: Dict[str, str]) -> None:
+        """Log tags"""
+        mlflow.set_tags(_safe_keys(tags))
+
+    @retry
     def log_metrics(self, metrics: Dict[str, float], epoch: Optional[int] = None, is_param: bool = False) -> None:
         """Log metrics.
         Mlflow requires metrics to be floats.
