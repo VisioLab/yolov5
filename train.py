@@ -29,6 +29,7 @@ import torch.nn as nn
 import yaml
 from torch.optim import lr_scheduler
 from tqdm import tqdm
+
 from export_coreml import save_ts_coreml
 
 FILE = Path(__file__).resolve()
@@ -48,7 +49,8 @@ from utils.downloads import attempt_download
 from utils.general import (LOGGER, check_amp, check_dataset, check_file, check_git_status, check_img_size,
                            check_requirements, check_suffix, check_yaml, colorstr, get_latest_run, increment_path,
                            init_seeds, intersect_dicts, labels_to_class_weights, labels_to_image_weights, methods,
-                           one_cycle, print_args, print_mutation, save_dataset_stats, strip_optimizer)
+                           one_cycle, print_args, print_mutation, remove_last_layer, save_dataset_stats,
+                           strip_optimizer)
 from utils.loggers import Loggers
 from utils.loggers.wandb.wandb_utils import check_wandb_resume
 from utils.loss import ComputeLoss
@@ -63,9 +65,9 @@ WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
 
 
 def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictionary
-    save_dir, epochs, batch_size, weights, single_cls, evolve, data, cfg, resume, noval, nosave, workers, freeze, negatives_path = \
+    save_dir, epochs, batch_size, weights, single_cls, evolve, data, cfg, resume, noval, nosave, workers, freeze, negatives_path, fine_tune = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, opt.single_cls, opt.evolve, opt.data, opt.cfg, \
-        opt.resume, opt.noval, opt.nosave, opt.workers, opt.freeze, opt.negatives_path
+        opt.resume, opt.noval, opt.nosave, opt.workers, opt.freeze, opt.negatives_path, opt.finetune
     callbacks.run('on_pretrain_routine_start')
 
     if opt.eval_x_epochs and opt.noval:
@@ -126,6 +128,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         model = Model(cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
         exclude = ['anchor'] if (cfg or hyp.get('anchors')) and not resume else []  # exclude keys
         csd = ckpt['model'].float().state_dict()  # checkpoint state_dict as FP32
+        if fine_tune:
+            remove_last_layer(csd)
         csd = intersect_dicts(csd, model.state_dict(), exclude=exclude)  # intersect
         model.load_state_dict(csd, strict=False)  # load
         LOGGER.info(f'Transferred {len(csd)}/{len(model.state_dict())} items from {weights}')  # report
@@ -169,7 +173,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
 
     # Resume
     start_epoch, best_fitness = 0, 0.0
-    if pretrained:
+    if pretrained and not fine_tune:
         # Optimizer
         if ckpt['optimizer'] is not None:
             optimizer.load_state_dict(ckpt['optimizer'])
@@ -419,7 +423,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                     torch.save(ckpt, best)
                 if opt.save_period > 0 and epoch % opt.save_period == 0:
                     torch.save(ckpt, w / f'epoch{epoch}.pt')
-                    save_ts_coreml(path= w / f'epoch{epoch}.pt', imgsz=imgsz)
+                    save_ts_coreml(path=w / f'epoch{epoch}.pt', imgsz=imgsz)
                 del ckpt
                 callbacks.run('on_model_save', last, epoch, final_epoch, best_fitness, fi)
 
@@ -522,13 +526,19 @@ def parse_opt(known=False):
                         default=2,
                         help='factor to increase or decrease batch size during evaluation')
     parser.add_argument('--eval-x-epochs', type=int, help='evaluate only every x epochs')
+    parser.add_argument('--finetune', action='store_true', help='finetuning the model, clears the last layer')
 
     # Weights & Biases arguments
     parser.add_argument('--entity', default=None, help='W&B: Entity')
     parser.add_argument('--upload_dataset', nargs='?', const=True, default=False, help='W&B: Upload data, "val" option')
     parser.add_argument('--bbox_interval', type=int, default=-1, help='W&B: Set bounding-box image logging interval')
     parser.add_argument('--artifact_alias', type=str, default='latest', help='W&B: Version of dataset artifact to use')
-    parser.add_argument("--tag", type=str, nargs=2, action="append", metavar=("key", "value"), help="mlflow: Add additional tags")
+    parser.add_argument("--tag",
+                        type=str,
+                        nargs=2,
+                        action="append",
+                        metavar=("key", "value"),
+                        help="mlflow: Add additional tags")
 
     opt = parser.parse_known_args()[0] if known else parser.parse_args()
     return opt
