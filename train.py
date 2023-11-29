@@ -48,7 +48,7 @@ from utils.downloads import attempt_download
 from utils.general import (LOGGER, check_amp, check_dataset, check_file, check_git_status, check_img_size,
                            check_requirements, check_suffix, check_yaml, colorstr, get_latest_run, increment_path,
                            init_seeds, intersect_dicts, labels_to_class_weights, labels_to_image_weights, methods,
-                           one_cycle, print_args, print_mutation, save_dataset_stats, strip_optimizer)
+                           one_cycle, print_args, print_mutation, save_dataset_stats, strip_optimizer, remove_last_layer)
 from utils.loggers import Loggers
 from utils.loggers.wandb.wandb_utils import check_wandb_resume
 from utils.loss import ComputeLoss
@@ -63,9 +63,9 @@ WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
 
 
 def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictionary
-    save_dir, epochs, batch_size, weights, single_cls, evolve, data, cfg, resume, noval, nosave, workers, freeze, negatives_path = \
+    save_dir, epochs, batch_size, weights, single_cls, evolve, data, cfg, resume, noval, nosave, workers, freeze, negatives_path, fine_tune = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, opt.single_cls, opt.evolve, opt.data, opt.cfg, \
-        opt.resume, opt.noval, opt.nosave, opt.workers, opt.freeze, opt.negatives_path
+        opt.resume, opt.noval, opt.nosave, opt.workers, opt.freeze, opt.negatives_path, opt.finetune
     callbacks.run('on_pretrain_routine_start')
 
     if opt.eval_x_epochs and opt.noval:
@@ -126,6 +126,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         model = Model(cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
         exclude = ['anchor'] if (cfg or hyp.get('anchors')) and not resume else []  # exclude keys
         csd = ckpt['model'].float().state_dict()  # checkpoint state_dict as FP32
+        if fine_tune:
+            csd = remove_last_layer(csd)
         csd = intersect_dicts(csd, model.state_dict(), exclude=exclude)  # intersect
         model.load_state_dict(csd, strict=False)  # load
         LOGGER.info(f'Transferred {len(csd)}/{len(model.state_dict())} items from {weights}')  # report
@@ -448,7 +450,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                 strip_optimizer(f)  # strip optimizers
                 if f is best:
                     LOGGER.info(f'\nValidating {f}...')
-                    save_ts_coreml(best, imgsz=imgsz)
+                    # save_ts_coreml(best, imgsz=imgsz)
 
                     results, _, _ = val.run(
                         data_dict,
@@ -522,6 +524,7 @@ def parse_opt(known=False):
                         default=2,
                         help='factor to increase or decrease batch size during evaluation')
     parser.add_argument('--eval-x-epochs', type=int, help='evaluate only every x epochs')
+    parser.add_argument('--finetune', action='store_true',help='finetuning the model, clears the last layer')
 
     # Weights & Biases arguments
     parser.add_argument('--entity', default=None, help='W&B: Entity')
