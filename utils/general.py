@@ -255,7 +255,7 @@ def init_seeds(seed=0, deterministic=False):
     # torch.cuda.manual_seed_all(seed)  # for multi GPU, exception safe
 
 def remove_last_layer(a: OrderedDict) -> None:
-    for _ in range(6):
+    for _ in range(7):
         a.popitem()
 
 def intersect_dicts(da, db, exclude=()):
