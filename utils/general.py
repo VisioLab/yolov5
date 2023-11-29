@@ -2,7 +2,7 @@
 """
 General utils
 """
-
+from collections import OrderedDict
 import contextlib
 import glob
 import inspect
@@ -254,8 +254,9 @@ def init_seeds(seed=0, deterministic=False):
     # torch.cuda.manual_seed(seed)
     # torch.cuda.manual_seed_all(seed)  # for multi GPU, exception safe
 
-def remove_last_layer(a):
-    return {key: value for key, value in a.items() if not key.startswith('model.24')}
+def remove_last_layer(a: OrderedDict) -> None:
+    for _ in range(6):
+        a.popitem()
 
 def intersect_dicts(da, db, exclude=()):
     # Dictionary intersection of matching keys and shapes, omitting 'exclude' keys, using da values
