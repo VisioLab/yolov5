@@ -14,6 +14,7 @@ from zipfile import ZipFile
 
 import requests
 import torch
+from google.cloud import storage
 
 
 def is_url(url):
@@ -62,6 +63,13 @@ def attempt_download(file, repo='ultralytics/yolov5', release='v6.1'):
             version = f'tags/{version}'  # i.e. tags/v6.1
         response = requests.get(f'https://api.github.com/repos/{repository}/releases/{version}').json()  # github api
         return response['tag_name'], [x['name'] for x in response['assets']]  # tag, assets
+
+    if file.startswith("gs://"):
+        # Cloud storage uri specified
+        path = 'initial_weights.pt'
+        with open(path, 'wb') as fh:
+            storage.Client().download_blob_to_file(file, fh)
+        return path
 
     file = Path(str(file).strip().replace("'", ''))
     if not file.exists():

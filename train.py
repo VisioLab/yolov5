@@ -441,7 +441,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     # Log dataset statistics
     dataset_stats_str = {data_dict['names'][idx]: count for idx, count in dataset_stats.items()}
     try:
-        ds_stats_path = save_dataset_stats(dataset, data_dict, dataset_stats_str, save_dir)
+        save_dataset_stats(dataset, data_dict, dataset_stats_str, save_dir)
     except Exception:
         LOGGER.exception('Failed to log dataset stats')
 
@@ -458,7 +458,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                         data_dict,
                         batch_size=batch_size // WORLD_SIZE * 2,
                         imgsz=imgsz,
-                        model=attempt_load(f, device).half(),
+                        model=attempt_load(str(f), device).half(),
                         iou_thres=0.65 if is_coco else 0.60,  # best pycocotools results at 0.65
                         single_cls=single_cls,
                         dataloader=val_loader,
