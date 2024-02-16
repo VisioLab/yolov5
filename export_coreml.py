@@ -81,7 +81,7 @@ def torchscript(obj: Context):
 
 
 @torch.no_grad()
-def initialize_model(weights, batch_size: int, image_size: Tuple[int, int]):
+def initialize_model(weights: str, batch_size: int, image_size: Tuple[int, int]):
     # Load PyTorch model
     device = 'cpu'
     model = attempt_load(weights, device=device, inplace=True, fuse=True)  # load FP32 model
@@ -170,8 +170,9 @@ def export_coreml_with_nms(model,
 
     return ts, ct_model
 
-def save_ts_coreml(path, imgsz:int = 640):
-    model_load, sample_img, _ = initialize_model(path, 1, image_size=(imgsz, imgsz))
+
+def save_ts_coreml(path: Path, imgsz: int = 640):
+    model_load, sample_img, _ = initialize_model(str(path), 1, image_size=(imgsz, imgsz))
     ts_model, coreml_model = export_coreml_with_nms(model_load, sample_img)
     torch.jit.save(ts_model, path.with_suffix('.ts'))
     coreml_model.save(path.with_suffix('.mlmodel'))
