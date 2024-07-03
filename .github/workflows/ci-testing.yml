@@ -47,7 +47,7 @@ jobs:
           model=${{ matrix.model }}
           best=runs/train/exp/weights/best.pt
           # Train
-          python train.py --img 64 --batch 32 --weights $model.pt --cfg $model.yaml --epochs 1 --device $d --balanced --tag a b
+          python train.py --img 64 --batch 32 --weights $model.pt --cfg $model.yaml --epochs 1 --device $d --balanced --tag a b --mlflow-run-name test
           # Val
           python val.py --img 64 --batch 32 --weights $model.pt --device $d
           python val.py --img 64 --batch 32 --weights $best --device $d

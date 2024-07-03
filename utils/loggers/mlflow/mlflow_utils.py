@@ -11,9 +11,8 @@ import backoff
 import mlflow
 import requests
 import torch
-
-from urllib3.exceptions import MaxRetryError
 from google.api_core.exceptions import GoogleAPICallError
+from urllib3.exceptions import MaxRetryError
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[3]
@@ -55,7 +54,9 @@ class MlflowLogger:
         run_id = None
         if run_id_path.exists():
             run_id = run_id_path.read_text()
-        self.active_run = mlflow.start_run(run_id=run_id, nested=parent_run_id is not None)
+        self.active_run = mlflow.start_run(run_id=run_id,
+                                           nested=parent_run_id is not None,
+                                           run_name=opt.mlflow_run_name)
         if not run_id_path.exists():
             run_id_path.write_text(self.active_run.info.run_id)
         LOGGER.info(f"{self.prefix}Using run_id({self.active_run.info.run_id})")
