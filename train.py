@@ -539,6 +539,7 @@ def parse_opt(known=False):
                         action="append",
                         metavar=("key", "value"),
                         help="mlflow: Add additional tags")
+    parser.add_argument('--mlflow-run-name', help='Mlflow: Name of run')
 
     opt = parser.parse_known_args()[0] if known else parser.parse_args()
     return opt
