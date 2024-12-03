@@ -47,7 +47,7 @@ jobs:
         run: |
           echo "image_tag=${{ steps.branch-name.outputs.current_branch }}" >> $GITHUB_ENV
       - name: Build and push GPU image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           context: .
           file: utils/docker/Dockerfile
