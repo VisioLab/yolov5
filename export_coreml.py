@@ -2,7 +2,6 @@
 import logging
 import os
 import platform
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Tuple
@@ -26,7 +25,7 @@ class Context:
     sample_img: torch.Tensor
     out_shape: Tuple[int, int]
     weights_path: Path
-    output_dir: Path
+    output: Path
 
 
 @click.group('Export')
@@ -35,21 +34,19 @@ class Context:
               type=str,
               help=('Path or mlflow uri of model weights, uri form: '
                     '"runs:/RUN_ID/path/to/artifact" or "models:/MODEL_NAME/STAGE"'))
-@click.option('--output-dir', type=Path, help='Path of directory to store exported model.')
+@click.option('--output', type=Path, help='Path to store converted model.')
 @click.option('--upload', help='log as mlflow artifact, ensure that `MLFLOW_RUN_ID` env var is set', is_flag=True)
 @click.pass_context
-def cli(ctx, weights, output_dir=None, upload=False, batch_size=1, image_size=(640, 640)):
+def cli(ctx, weights, output: Path, upload=False, batch_size=1, image_size=(640, 640)):
     weights_path = Path(weights if os.path.exists(weights) else mlflow_artifacts.download_artifacts(weights))
     model, sample_img, out_shape = initialize_model(weights, batch_size, image_size)
 
     LOGGER.info(
         f"\n{colorstr('PyTorch:')} starting from {weights_path} with output shape {out_shape} ({file_size(weights_path):.1f} MB)"
     )
-    if output_dir is None:
-        output_dir = Path(tempfile.mkdtemp())
-    elif not output_dir.exists():
-        output_dir.mkdir(parents=True)
-    ctx.obj = Context(model, sample_img, out_shape, weights_path, output_dir)
+    if not output.exists():
+        output.parent.mkdir(parents=True, exist_ok=True)
+    ctx.obj = Context(model, sample_img, out_shape, weights_path, output)
 
 
 @cli.result_callback()
@@ -64,20 +61,18 @@ def upload(file, **kwargs):
 @click.pass_obj
 def coreml(obj: Context):
     _, model = export_coreml_with_nms(obj.model, obj.sample_img)
-    file = obj.output_dir / obj.weights_path.with_suffix('.mlmodel').name
-    model.save(file)
-    LOGGER.info(f'Succesully exported model as {file}')
-    return file
+    model.save(obj.output)
+    LOGGER.info(f'Succesully exported model as {obj.output}')
+    return obj.output
 
 
 @cli.command()
 @click.pass_obj
 def torchscript(obj: Context):
     ts = export_torchscript_model(obj.model, obj.sample_img)
-    file = obj.output_dir / obj.weights_path.with_suffix('.ts').name
-    torch.jit.save(ts, file)  # type: ignore
-    LOGGER.info(f'Succesully exported model as {file}')
-    return file
+    torch.jit.save(ts, obj.output)  # type: ignore
+    LOGGER.info(f'Succesully exported model as {obj.output}')
+    return obj.output
 
 
 @torch.no_grad()
@@ -116,7 +111,7 @@ def export_torchscript_model(model, sample_img):
 def export_coreml_with_nms(model,
                            sample_img: torch.Tensor,
                            quantize: bool = False,
-                           half: bool = False) -> ct.models.MLModel:
+                           half: bool = False) -> tuple[Any, ct.models.MLModel]:
     prefix = colorstr('CoreML:')
     mac_capabilities = platform.system() == 'Darwin'
     if not mac_capabilities:
