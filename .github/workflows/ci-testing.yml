@@ -57,8 +57,8 @@ jobs:
           python hubconf.py  # hub
           # Export
           python models/yolo.py --cfg $model.yaml  # build PyTorch model
-          python export_coreml.py --weights $model.pt coreml
-          python export_coreml.py --weights $model.pt torchscript
+          python export_coreml.py --output model.mlmodel --weights $model.pt coreml
+          python export_coreml.py --output model.ts --weights $model.pt torchscript
           # Distributed Sampler
           python -m utils.sampler
           # Python
