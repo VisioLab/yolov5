@@ -152,6 +152,7 @@ class Loggers():
     def on_fit_epoch_end(self, vals, epoch, best_fitness, fi):
         # Callback runs at the end of each fit (train+val) epoch
         x = dict(zip(self.keys, vals))
+        x = {k: v.item() if isinstance(v, torch.Tensor) else v for k, v in x.items()}
         if self.csv:
             file = self.save_dir / 'results.csv'
             n = len(x) + 1  # number of cols
