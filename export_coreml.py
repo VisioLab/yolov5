@@ -122,7 +122,11 @@ def export_coreml_with_nms(model,
     LOGGER.info(f'{prefix} starting export with coremltools {ct.__version__}...')
 
     with logging_context(logging.WARN):
-        ct_model = ct.convert(ts, inputs=[ct.ImageType('image', shape=sample_img.shape, scale=1 / 255, bias=[0, 0, 0])])
+        ct_model = ct.convert(
+            ts,
+            inputs=[ct.ImageType('image', shape=sample_img.shape, scale=1 / 255, bias=[0, 0, 0])],
+            convert_to="neuralnetwork",
+        )
     bits, mode = (8, 'kmeans_lut') if quantize else (16, 'linear') if half else (32, None)
     if bits < 32:
         if mac_capabilities:
